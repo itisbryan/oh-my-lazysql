@@ -1,6 +1,8 @@
 package components
 
 import (
+	"fmt"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/rivo/tview"
 
@@ -45,8 +47,12 @@ func (ct *ConnectionsTable) AddConnection(connection models.Connection) {
 	rowCount := ct.GetRowCount()
 	displayName := connection.Name
 
+	if len(connection.Profiles) > 1 {
+		displayName = fmt.Sprintf("%s (%d profiles)", connection.Name, len(connection.Profiles))
+	}
+
 	if connection.ReadOnly {
-		displayName = "[lightblue]READ[-] " + connection.Name
+		displayName = "[lightblue]READ[-] " + displayName
 	}
 	ct.SetCellSimple(rowCount, 0, displayName)
 	ct.connections = append(ct.connections, connection)

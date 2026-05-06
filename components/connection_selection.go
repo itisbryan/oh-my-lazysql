@@ -142,6 +142,15 @@ func NewConnectionSelection(connectionForm *ConnectionForm, connectionPages *mod
 }
 
 func (cs *ConnectionSelection) Connect(connection models.Connection) *tview.Application {
+	if len(connection.Profiles) > 1 {
+		cs.ShowProfileSelectionModal(connection)
+		return App.Draw()
+	}
+
+	return cs.doConnect(connection)
+}
+
+func (cs *ConnectionSelection) doConnect(connection models.Connection) *tview.Application {
 	if mainPages.HasPage(connection.Name) {
 		mainPages.SwitchToPage(connection.Name)
 		return App.Draw()
@@ -149,10 +158,8 @@ func (cs *ConnectionSelection) Connect(connection models.Connection) *tview.Appl
 
 	if len(connection.Commands) > 0 {
 
-		// Contains variables -- both the generated port and user-defined.
 		variables := map[string]string{}
 
-		// Avoid getting the port when it's not requested.
 		waitsForPort := strings.Contains(connection.URL, "${port}")
 		waitsForPort = waitsForPort || slices.ContainsFunc(connection.Commands, func(command *models.Command) bool {
 			return command.WaitForPort != ""
@@ -164,7 +171,6 @@ func (cs *ConnectionSelection) Connect(connection models.Connection) *tview.Appl
 				cs.StatusText.SetText(err.Error()).SetTextStyle(tcell.StyleDefault.Foreground(tcell.ColorRed))
 				return App.Draw()
 			}
-			// Add port variable for the auto-generated port.
 			variables["port"] = port
 		}
 
@@ -181,7 +187,6 @@ func (cs *ConnectionSelection) Connect(connection models.Connection) *tview.Appl
 			markCommandComplete := App.Register()
 			onCommandDone, waitToCaptureVariable := setupOutputVariableCommand(variables, command, markCommandComplete)
 
-			// Use configured timeout or default to 5 seconds
 			timeout := time.Duration(command.Timeout) * time.Second
 			if command.Timeout == 0 {
 				timeout = 5 * time.Second
@@ -216,7 +221,6 @@ func (cs *ConnectionSelection) Connect(connection models.Connection) *tview.Appl
 			}
 		}
 
-		// Replace variables in URL.
 		for variable, value := range variables {
 			if variable == "" || value == "" {
 				continue
@@ -266,22 +270,70 @@ func (cs *ConnectionSelection) Connect(connection models.Connection) *tview.Appl
 	return App.Draw()
 }
 
-// Produces two functions: [onCommandDone] should be passed to [helpers.RunCommand],
-// and [captureVariable] should be called after. [captureVariable] will block until
-// the output from the command is saved into [variables].
-// If no [command.SaveOutputTo] is defined, [captureVariable] is a no-op.
+func (cs *ConnectionSelection) ShowProfileSelectionModal(connection models.Connection) {
+	modal := tview.NewModal()
+	modal.SetText("Select a profile to connect with:")
+
+	buttonLabels := make([]string, len(connection.Profiles))
+	for i, profile := range connection.Profiles {
+		profileName := profile.Name
+		if profileName == "" {
+			profileName = "default"
+		}
+		buttonLabels[i] = profileName
+	}
+	buttonLabels = append(buttonLabels, "Cancel")
+	modal.AddButtons(buttonLabels)
+
+	modal.SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+		mainPages.RemovePage("profileSelectionModal")
+
+		if buttonLabel == "Cancel" || buttonIndex == -1 {
+			return
+		}
+
+		for i, profile := range connection.Profiles {
+			profileName := profile.Name
+			if profileName == "" {
+				profileName = "default"
+			}
+			if profileName == buttonLabel {
+				cs.connectWithProfile(connection, i)
+				break
+			}
+		}
+	})
+
+	mainPages.AddPage("profileSelectionModal", modal, true, true)
+}
+
+func (cs *ConnectionSelection) connectWithProfile(connection models.Connection, profileIndex int) {
+	profile := connection.Profiles[profileIndex]
+
+	connection.URL, _ = helpers.BuildConnectionURL(
+		profile.Provider,
+		profile.Username,
+		profile.Password,
+		profile.Hostname,
+		profile.Port,
+		profile.DBName,
+		profile.SSLEnabled,
+		profile.SSLCert,
+		profile.SSLKey,
+		profile.SSLCA,
+	)
+
+	cs.doConnect(connection)
+}
+
 func setupOutputVariableCommand(variables map[string]string, command *models.Command, markCommandComplete func()) (onCommandDone func(string), captureVariable func()) {
 	if command.SaveOutputTo == "" {
-		// No variable? Mark the command completed, but otherwise no-op.
 		onCommandDone = func(_ string) { markCommandComplete() }
 		return onCommandDone, func() {}
 	}
 
-	// When the command runs, the stdout will be passed through this channel.
 	variableSaved := make(chan string)
 
-	// To capture the variable, we receive from the channel; onCommandDone sends
-	// on that channel, so we're just synchronizing with the completion of the command.
 	captureVariable = func() {
 		output := <-variableSaved
 		variables[command.SaveOutputTo] = output
