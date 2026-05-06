@@ -4,10 +4,14 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/jorgerojas26/lazysql/drivers"
 )
 
 type EditorModel struct {
 	textarea textarea.Model
+	driver   drivers.Driver
+	results  *ResultsModel
 	width    int
 	height   int
 	focused  bool

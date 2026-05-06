@@ -6,6 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/jorgerojas26/lazysql/drivers"
 )
 
 type TreeNodeType int
@@ -38,13 +40,14 @@ type FlatNode struct {
 }
 
 type TreeModel struct {
-	root       *TreeNode
-	cursor     int
-	flattened  []FlatNode
-	width      int
-	height     int
-	focused    bool
-	status     string
+	driver    drivers.Driver
+	root      *TreeNode
+	cursor    int
+	flattened []FlatNode
+	width     int
+	height    int
+	focused   bool
+	status    string
 }
 
 var treeIcons = map[TreeNodeType]string{

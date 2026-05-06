@@ -4,13 +4,17 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/jorgerojas26/lazysql/drivers"
+	"github.com/jorgerojas26/lazysql/helpers/logger"
 	"github.com/jorgerojas26/lazysql/models"
 )
 
 type HomeModel struct {
 	connection models.Connection
+	driver     drivers.Driver
 	tree       *TreeModel
 	editor     *EditorModel
+	results    *ResultsModel
 	width      int
 	height     int
 	focus      string
@@ -21,12 +25,41 @@ func NewHomeModel(data any) *HomeModel {
 	if !ok {
 		conn = models.Connection{}
 	}
-	return &HomeModel{
+
+	var driver drivers.Driver
+	switch conn.Provider {
+	case "MySQL":
+		driver = &drivers.MySQL{}
+	case "PostgreSQL":
+		driver = &drivers.Postgres{}
+	case "SQLite":
+		driver = &drivers.SQLite{}
+	case "MSSQL":
+		driver = &drivers.MSSQL{}
+	default:
+		driver = &drivers.MySQL{}
+	}
+
+	if conn.URL != "" {
+		if err := driver.Connect(conn.URL); err != nil {
+			logger.Error("Failed to connect", map[string]any{"error": err})
+		}
+	}
+
+	home := &HomeModel{
 		connection: conn,
+		driver:     driver,
 		tree:       NewTreeModel(),
 		editor:     NewEditorModel(),
+		results:    NewResultsModel(),
 		focus:      "tree",
 	}
+
+	home.tree.driver = driver
+	home.editor.driver = driver
+	home.editor.results = home.results
+
+	return home
 }
 
 func (m *HomeModel) Init() tea.Cmd {
