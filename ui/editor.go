@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"fmt"
+
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -9,12 +11,13 @@ import (
 )
 
 type EditorModel struct {
-	textarea textarea.Model
-	driver   drivers.Driver
-	results  *ResultsModel
-	width    int
-	height   int
-	focused  bool
+	textarea   textarea.Model
+	driver     drivers.Driver
+	results    *ResultsModel
+	width      int
+	height     int
+	focused    bool
+	executing  bool
 }
 
 func NewEditorModel() *EditorModel {
@@ -27,6 +30,14 @@ func NewEditorModel() *EditorModel {
 		textarea: ta,
 		focused:  true,
 	}
+}
+
+func (m *EditorModel) SetDriver(driver drivers.Driver) {
+	m.driver = driver
+}
+
+func (m *EditorModel) SetResults(results *ResultsModel) {
+	m.results = results
 }
 
 func (m *EditorModel) Init() tea.Cmd {
@@ -42,7 +53,7 @@ func (m *EditorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+e", "enter":
-			if m.textarea.Focused() {
+			if m.textarea.Focused() && !m.executing {
 				return m, m.executeQuery
 			}
 		case "esc":
@@ -55,15 +66,45 @@ func (m *EditorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m EditorModel) executeQuery() tea.Msg {
+func (m *EditorModel) executeQuery() tea.Msg {
+	if m.driver == nil {
+		return nil
+	}
+	sql := m.textarea.Value()
+	if sql == "" {
+		return nil
+	}
+
+	m.executing = true
+	results, rowCount, err := m.driver.ExecuteQuery(sql)
+	m.executing = false
+
+	if err != nil {
+		if m.results != nil {
+			m.results.SetStatus("Error: " + err.Error())
+		}
+		return nil
+	}
+
+	if m.results != nil && len(results) > 0 {
+		columns := results[0]
+		rows := results[1:]
+		m.results.SetData(columns, rows)
+		m.results.SetStatus(fmt.Sprintf("Got %d rows", rowCount))
+	}
 	return nil
 }
 
 func (m *EditorModel) View() string {
+	executeHint := "[Ctrl+E] Execute  [Esc] Blur"
+	if m.executing {
+		executeHint = "Executing..."
+	}
+
 	content := lipgloss.JoinVertical(lipgloss.Left,
 		TitleStyle.Render("SQL Editor"),
 		m.textarea.View(),
-		HelpStyle.Render("[Ctrl+E] Execute  [Esc] Blur"),
+		HelpStyle.Render(executeHint),
 	)
 
 	box := lipgloss.NewStyle().
