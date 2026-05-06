@@ -14,9 +14,11 @@ import (
 
 type ConnectionForm struct {
 	*tview.Flex
-	StatusText *tview.TextView
-	Action     string
-	form       *tview.Form
+	StatusText     *tview.TextView
+	Action         string
+	form           *tview.Form
+	showAdvanced   bool
+	urlFieldAdded  bool
 }
 
 type FormFields struct {
@@ -78,7 +80,11 @@ func NewConnectionForm(connectionPages *models.ConnectionPages) *ConnectionForm 
 		connectionsFormInstance.handleSSLChange(checked)
 	})
 	addForm.AddCheckbox("Read-Only", false, nil)
-	addForm.AddInputField("URL", "", 60, nil, nil)
+
+	addForm.AddButton("Show Advanced", func() {
+		connectionsFormInstance.toggleAdvancedFields()
+	})
+
 	addForm.AddInputField("SSL Cert", "", 40, nil, nil)
 	addForm.AddInputField("SSL Key", "", 40, nil, nil)
 	addForm.AddInputField("SSL CA", "", 40, nil, nil)
@@ -93,7 +99,6 @@ func NewConnectionForm(connectionPages *models.ConnectionPages) *ConnectionForm 
 		Database: addForm.GetFormItemByLabel("Database").(*tview.InputField),
 		SSL:      addForm.GetFormItemByLabel("SSL Enabled").(*tview.Checkbox),
 		ReadOnly: addForm.GetFormItemByLabel("Read-Only").(*tview.Checkbox),
-		URL:      addForm.GetFormItemByLabel("URL").(*tview.InputField),
 		SSLCert:  addForm.GetFormItemByLabel("SSL Cert").(*tview.InputField),
 		SSLKey:   addForm.GetFormItemByLabel("SSL Key").(*tview.InputField),
 		SSLCA:    addForm.GetFormItemByLabel("SSL CA").(*tview.InputField),
@@ -172,6 +177,38 @@ func (form *ConnectionForm) handleSSLChange(enabled bool) {
 	formFields.SSLCert.SetDisabled(!enabled)
 	formFields.SSLKey.SetDisabled(!enabled)
 	formFields.SSLCA.SetDisabled(!enabled)
+}
+
+func (form *ConnectionForm) toggleAdvancedFields() {
+	form.showAdvanced = !form.showAdvanced
+
+	if form.showAdvanced {
+		if !form.urlFieldAdded {
+			form.form.AddInputField("URL", "", 60, nil, nil)
+			formFields.URL = form.form.GetFormItemByLabel("URL").(*tview.InputField)
+			form.urlFieldAdded = true
+		}
+	} else {
+		if formFields.URL != nil {
+			urlIndex := form.form.GetFormItemIndex("URL")
+			if urlIndex >= 0 {
+				form.form.RemoveFormItem(urlIndex)
+			}
+			form.urlFieldAdded = false
+			formFields.URL = nil
+		}
+	}
+
+	for i := 0; i < form.form.GetButtonCount(); i++ {
+		btn := form.form.GetButton(i)
+		if btn != nil && btn.GetLabel() == "Show Advanced" {
+			if form.showAdvanced {
+				btn.SetLabel("Hide Advanced")
+			} else {
+				btn.SetLabel("Show Advanced")
+			}
+		}
+	}
 }
 
 func (form *ConnectionForm) inputCapture(connectionPages *models.ConnectionPages) func(event *tcell.EventKey) *tcell.EventKey {
@@ -375,8 +412,24 @@ func (form *ConnectionForm) SetConnectionData(conn models.Connection) {
 	formFields.SSLCert.SetText(sslCert)
 	formFields.SSLKey.SetText(sslKey)
 	formFields.SSLCA.SetText(sslCA)
-	formFields.URL.SetText(conn.URL)
 	formFields.ReadOnly.SetChecked(conn.ReadOnly)
+
+	if conn.URL != "" {
+		form.showAdvanced = true
+		if !form.urlFieldAdded {
+			form.form.AddInputField("URL", conn.URL, 60, nil, nil)
+			formFields.URL = form.form.GetFormItemByLabel("URL").(*tview.InputField)
+			form.urlFieldAdded = true
+		} else if formFields.URL != nil {
+			formFields.URL.SetText(conn.URL)
+		}
+		for i := 0; i < form.form.GetButtonCount(); i++ {
+			btn := form.form.GetButton(i)
+			if btn != nil && btn.GetLabel() == "Show Advanced" {
+				btn.SetLabel("Hide Advanced")
+			}
+		}
+	}
 }
 
 func driverToProvider(d string) string {

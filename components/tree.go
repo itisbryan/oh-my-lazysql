@@ -55,6 +55,77 @@ type TreeNodeData struct {
 	Name     string
 }
 
+const (
+	treeIconDatabase  = "󰆼"
+	treeIconSchema    = "󰙅"
+	treeIconTables    = "󰓫"
+	treeIconTable     = "󰓱"
+	treeIconView      = "󰈙"
+	treeIconFunction  = "󰊕"
+	treeIconProcedure = "󰡱"
+)
+
+func treeNodeLabel(nodeType TreeNodeType, label string) string {
+	switch nodeType {
+	case NodeTypeDatabase:
+		return fmt.Sprintf("%s %s", treeIconDatabase, label)
+	case NodeTypeTable:
+		return fmt.Sprintf("%s %s", treeIconTable, label)
+	case NodeTypeFunction:
+		return fmt.Sprintf("%s %s", treeIconFunction, label)
+	case NodeTypeProcedure:
+		return fmt.Sprintf("%s %s", treeIconProcedure, label)
+	case NodeTypeView:
+		return fmt.Sprintf("%s %s", treeIconView, label)
+	default:
+		return label
+	}
+}
+
+func treeSectionLabel(label string) string {
+	switch label {
+	case "tables":
+		return fmt.Sprintf("%s %s", treeIconTables, label)
+	case "functions":
+		return fmt.Sprintf("%s %s", treeIconFunction, label)
+	case "procedures":
+		return fmt.Sprintf("%s %s", treeIconProcedure, label)
+	case "views":
+		return fmt.Sprintf("%s %s", treeIconView, label)
+	default:
+		return fmt.Sprintf("%s %s", treeIconSchema, label)
+	}
+}
+
+func isSystemSchema(name string) bool {
+	switch name {
+	case "information_schema", "pg_catalog", "mysql", "sys":
+		return true
+	default:
+		return false
+	}
+}
+
+func treeNodeColor(nodeType TreeNodeType, label string) tcell.Color {
+	switch nodeType {
+	case NodeTypeDatabase:
+		return tcell.ColorDeepSkyBlue
+	case NodeTypeFunction:
+		return tcell.ColorMediumPurple
+	case NodeTypeProcedure:
+		return tcell.ColorOrange
+	case NodeTypeView:
+		return tcell.ColorGreen
+	case NodeTypeSection:
+		if isSystemSchema(label) {
+			return tcell.ColorGray
+		}
+		return app.Styles.SecondaryTextColor
+	default:
+		return app.Styles.PrimaryTextColor
+	}
+}
+
 func (tree *Tree) GetTreeNodeData(node *tview.TreeNode) *TreeNodeData {
 	key := node.GetReference().(string)
 	supportsProgramming := tree.DBDriver.SupportsProgramming()
@@ -356,10 +427,10 @@ func (tree *Tree) databasesToNodes(children map[string][]string, node *tview.Tre
 		nodeReference := node.GetReference().(string)
 
 		if key != nodeReference {
-			rootNode = tview.NewTreeNode(key)
+			rootNode = tview.NewTreeNode(treeSectionLabel(key))
 			rootNode.SetExpanded(false)
 			rootNode.SetReference(key)
-			rootNode.SetColor(app.Styles.PrimaryTextColor)
+			rootNode.SetColor(treeNodeColor(NodeTypeSection, key))
 			node.AddChild(rootNode)
 			tablesContainer = rootNode
 		} else {
@@ -368,9 +439,9 @@ func (tree *Tree) databasesToNodes(children map[string][]string, node *tview.Tre
 
 		supportsProgramming := tree.DBDriver.SupportsProgramming()
 		if supportsProgramming {
-			tablesNode := tview.NewTreeNode("tables")
+			tablesNode := tview.NewTreeNode(treeSectionLabel("tables"))
 			tablesNode.SetExpanded(false)
-			tablesNode.SetColor(app.Styles.PrimaryTextColor)
+			tablesNode.SetColor(treeNodeColor(NodeTypeSection, "tables"))
 
 			if rootNode != nil {
 				tablesNode.SetReference(fmt.Sprintf("%s.tables", key))
@@ -384,9 +455,9 @@ func (tree *Tree) databasesToNodes(children map[string][]string, node *tview.Tre
 		}
 
 		for _, child := range values {
-			childNode := tview.NewTreeNode(child)
+			childNode := tview.NewTreeNode(treeNodeLabel(NodeTypeTable, child))
 			childNode.SetExpanded(defaultExpanded)
-			childNode.SetColor(app.Styles.PrimaryTextColor)
+			childNode.SetColor(treeNodeColor(NodeTypeTable, child))
 
 			if tree.DBDriver.UseSchemas() {
 				if supportsProgramming {
@@ -408,22 +479,22 @@ func (tree *Tree) databasesToNodes(children map[string][]string, node *tview.Tre
 }
 
 func (tree *Tree) addProgrammingNodes(functions map[string][]string, procedures map[string][]string, views map[string][]string, node *tview.TreeNode) {
-	database := node.GetText()
+	database := node.GetReference().(string)
 	dbFunctions := functions[database]
 	sort.Strings(dbFunctions)
 
 	var functionsNode *tview.TreeNode
 	functionsNodeReference := fmt.Sprintf("%s.functions", node.GetReference().(string))
-	functionsNode = tview.NewTreeNode("functions")
+	functionsNode = tview.NewTreeNode(treeSectionLabel("functions"))
 	functionsNode.SetExpanded(false)
 	functionsNode.SetReference(functionsNodeReference)
-	functionsNode.SetColor(app.Styles.PrimaryTextColor)
+	functionsNode.SetColor(treeNodeColor(NodeTypeSection, "functions"))
 	node.AddChild(functionsNode)
 
 	for _, function := range dbFunctions {
-		functionNode := tview.NewTreeNode(function)
+		functionNode := tview.NewTreeNode(treeNodeLabel(NodeTypeFunction, function))
 		functionNode.SetExpanded(false)
-		functionNode.SetColor(app.Styles.PrimaryTextColor)
+		functionNode.SetColor(treeNodeColor(NodeTypeFunction, function))
 		functionNode.SetReference(fmt.Sprintf("%s.%s", functionsNodeReference, function))
 		functionsNode.AddChild(functionNode)
 	}
@@ -433,16 +504,16 @@ func (tree *Tree) addProgrammingNodes(functions map[string][]string, procedures 
 
 	var proceduresNode *tview.TreeNode
 	proceduresNodeReference := fmt.Sprintf("%s.procedures", node.GetReference().(string))
-	proceduresNode = tview.NewTreeNode("procedures")
+	proceduresNode = tview.NewTreeNode(treeSectionLabel("procedures"))
 	proceduresNode.SetExpanded(false)
 	proceduresNode.SetReference(proceduresNodeReference)
-	proceduresNode.SetColor(app.Styles.PrimaryTextColor)
+	proceduresNode.SetColor(treeNodeColor(NodeTypeSection, "procedures"))
 	node.AddChild(proceduresNode)
 
 	for _, procedure := range dbProcedures {
-		procedureNode := tview.NewTreeNode(procedure)
+		procedureNode := tview.NewTreeNode(treeNodeLabel(NodeTypeProcedure, procedure))
 		procedureNode.SetExpanded(false)
-		procedureNode.SetColor(app.Styles.PrimaryTextColor)
+		procedureNode.SetColor(treeNodeColor(NodeTypeProcedure, procedure))
 		procedureNode.SetReference(fmt.Sprintf("%s.%s", proceduresNodeReference, procedure))
 		proceduresNode.AddChild(procedureNode)
 	}
@@ -452,16 +523,16 @@ func (tree *Tree) addProgrammingNodes(functions map[string][]string, procedures 
 
 	var viewsNode *tview.TreeNode
 	viewsNodeReference := fmt.Sprintf("%s.views", node.GetReference().(string))
-	viewsNode = tview.NewTreeNode("views")
+	viewsNode = tview.NewTreeNode(treeSectionLabel("views"))
 	viewsNode.SetExpanded(false)
 	viewsNode.SetReference(viewsNodeReference)
-	viewsNode.SetColor(app.Styles.PrimaryTextColor)
+	viewsNode.SetColor(treeNodeColor(NodeTypeSection, "views"))
 	node.AddChild(viewsNode)
 
 	for _, view := range dbViews {
-		viewNode := tview.NewTreeNode(view)
+		viewNode := tview.NewTreeNode(treeNodeLabel(NodeTypeView, view))
 		viewNode.SetExpanded(false)
-		viewNode.SetColor(app.Styles.PrimaryTextColor)
+		viewNode.SetColor(treeNodeColor(NodeTypeView, view))
 		viewNode.SetReference(fmt.Sprintf("%s.%s", viewsNodeReference, view))
 		viewsNode.AddChild(viewNode)
 	}
@@ -817,10 +888,10 @@ func (tree *Tree) InitializeNodes(dbName string) {
 	}
 
 	for _, database := range databases {
-		childNode := tview.NewTreeNode(database)
+		childNode := tview.NewTreeNode(treeNodeLabel(NodeTypeDatabase, database))
 		childNode.SetExpanded(false)
 		childNode.SetReference(database)
-		childNode.SetColor(app.Styles.PrimaryTextColor)
+		childNode.SetColor(treeNodeColor(NodeTypeDatabase, database))
 		rootNode.AddChild(childNode)
 
 		go func(database string, node *tview.TreeNode) {
@@ -864,6 +935,32 @@ func (tree *Tree) Refresh(dbName string) {
 	rootNode.ClearChildren()
 	// re-add nodes
 	tree.InitializeNodes(dbName)
+}
+
+func (tree *Tree) CollectTableNames() []string {
+	databases, err := tree.DBDriver.GetDatabases()
+	if err != nil {
+		return nil
+	}
+
+	seen := map[string]bool{}
+	var names []string
+	for _, db := range databases {
+		tables, err := tree.DBDriver.GetTables(db)
+		if err != nil {
+			continue
+		}
+		for _, tbls := range tables {
+			for _, t := range tbls {
+				key := t
+				if !seen[key] {
+					seen[key] = true
+					names = append(names, t)
+				}
+			}
+		}
+	}
+	return names
 }
 
 func (tree *Tree) ClearSearch() {

@@ -81,7 +81,7 @@ func NewHomePage(connection models.Connection, dbdriver drivers.Driver) *Home {
 		currentTab := home.TabbedPane.GetCurrentTab()
 		if currentTab != nil {
 			table := currentTab.Content.(*ResultsTable)
-			table.Editor.SetText(selectedQuery, true)
+			table.Editor.SetText(selectedQuery)
 		}
 	})
 
@@ -154,7 +154,7 @@ func (home *Home) subscribeToTreeChanges() {
 					logger.Error(err.Error(), nil)
 					continue
 				}
-				table.Editor.SetText(functionDefinition, false)
+				table.Editor.SetText(functionDefinition)
 				App.ForceDraw()
 			}
 		case eventTreeSelectedProcedure:
@@ -169,7 +169,7 @@ func (home *Home) subscribeToTreeChanges() {
 					logger.Error(err.Error(), nil)
 					continue
 				}
-				table.Editor.SetText(procedureDefinition, false)
+				table.Editor.SetText(procedureDefinition)
 				App.ForceDraw()
 			}
 		case eventTreeSelectedView:
@@ -184,7 +184,7 @@ func (home *Home) subscribeToTreeChanges() {
 					logger.Error(err.Error(), nil)
 					continue
 				}
-				table.Editor.SetText(viewDefinition, false)
+				table.Editor.SetText(viewDefinition)
 				App.ForceDraw()
 			}
 		}

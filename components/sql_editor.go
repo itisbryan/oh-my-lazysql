@@ -19,19 +19,18 @@ type SQLEditorState struct {
 }
 
 type SQLEditor struct {
-	*tview.TextArea
+	*SyntaxHighlightedEditor
 	state         *SQLEditorState
 	subscribers   []chan models.StateChange
 	ConnectionURL string
 }
 
 func NewSQLEditor(connectionURL string) *SQLEditor {
-	textarea := tview.NewTextArea()
-	textarea.SetBorder(true)
-	textarea.SetTitleAlign(tview.AlignLeft)
-	textarea.SetPlaceholder("Enter your SQL query here...")
+	editor := NewSyntaxHighlightedEditor()
+	editor.SetTitleAlign(tview.AlignLeft)
+	editor.SetPlaceholder("Enter your SQL query here...")
 	sqlEditor := &SQLEditor{
-		TextArea: textarea,
+		SyntaxHighlightedEditor: editor,
 		state: &SQLEditorState{
 			isFocused: false,
 		},
@@ -55,7 +54,7 @@ func NewSQLEditor(connectionURL string) *SQLEditor {
 				app.App.Suspend(func() {
 					newText = openExternalEditor(sqlEditor.GetText(), sqlEditor.ConnectionURL)
 				})
-				sqlEditor.SetText(newText, true)
+				sqlEditor.SetText(newText)
 			}
 		}
 
@@ -90,12 +89,14 @@ func (s *SQLEditor) SetIsFocused(isFocused bool) {
 
 func (s *SQLEditor) Highlight() {
 	s.SetBorderColor(app.Styles.PrimaryTextColor)
-	s.SetTextStyle(tcell.StyleDefault.Foreground(app.Styles.PrimaryTextColor))
 }
 
 func (s *SQLEditor) SetBlur() {
 	s.SetBorderColor(app.Styles.InverseTextColor)
-	s.SetTextStyle(tcell.StyleDefault.Foreground(app.Styles.InverseTextColor))
+}
+
+func (s *SQLEditor) SetExtraCompletions(items []string) {
+	s.SyntaxHighlightedEditor.SetExtraCompletions(items)
 }
 
 // openExternalEditor opens the user's preferred editor to edit the query.

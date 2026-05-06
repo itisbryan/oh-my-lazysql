@@ -23,7 +23,7 @@ type Connection struct {
 	URL string
 
 	// or parse manually
-	Provider string
+	Provider  string
 	Username  string
 	Password  string
 	Hostname  string
@@ -39,7 +39,7 @@ type Connection struct {
 	// If empty, all schemas are shown.
 	Schemas []string
 
-Commands []*Command
+	Commands []*Command
 }
 
 type KeymapConfig map[string]map[string]string

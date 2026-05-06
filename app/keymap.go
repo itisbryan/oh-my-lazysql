@@ -65,6 +65,8 @@ var Keymaps = KeymapSystem{
 			Bind{Key: Key{Code: tcell.KeyCtrlS}, Cmd: cmd.Save, Description: "Execute pending changes"},
 			Bind{Key: Key{Char: 'q'}, Cmd: cmd.Quit, Description: "Quit"},
 			Bind{Key: Key{Code: tcell.KeyBackspace2}, Cmd: cmd.SwitchToConnectionsView, Description: "Switch to connections list"},
+			Bind{Key: Key{Code: tcell.KeyCtrlH}, Cmd: cmd.MoveLeft, Description: "Focus tree"},
+			Bind{Key: Key{Code: tcell.KeyCtrlL}, Cmd: cmd.MoveRight, Description: "Focus table"},
 			Bind{Key: Key{Char: '?'}, Cmd: cmd.HelpPopup, Description: "Help"},
 			Bind{Key: Key{Code: tcell.KeyCtrlP}, Cmd: cmd.SearchGlobal, Description: "Global search"},
 			Bind{Key: Key{Code: tcell.KeyCtrlUnderscore}, Cmd: cmd.ToggleQueryHistory, Description: "Toggle query history modal"},
@@ -143,7 +145,7 @@ var Keymaps = KeymapSystem{
 		EditorGroup: {
 			Bind{Key: Key{Code: tcell.KeyCtrlR}, Cmd: cmd.Execute, Description: "Execute query"},
 			Bind{Key: Key{Code: tcell.KeyEscape}, Cmd: cmd.UnfocusEditor, Description: "Unfocus editor"},
-			Bind{Key: Key{Code: tcell.KeyCtrlSpace}, Cmd: cmd.OpenInExternalEditor, Description: "Open in external editor"},
+			Bind{Key: Key{Code: tcell.KeyCtrlO}, Cmd: cmd.OpenInExternalEditor, Description: "Open in external editor"},
 		},
 		SidebarGroup: {
 			Bind{Key: Key{Char: 's'}, Cmd: cmd.UnfocusSidebar, Description: "Focus table"},

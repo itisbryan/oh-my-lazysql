@@ -194,6 +194,13 @@ func (table *ResultsTable) WithEditor() *ResultsTable {
 
 	table.Editor = editor
 
+	go func() {
+		allTables := table.Tree.CollectTableNames()
+		if len(allTables) > 0 {
+			editor.SetExtraCompletions(allTables)
+		}
+	}()
+
 	table.Wrapper.Clear()
 
 	table.Wrapper.AddItem(editor, 12, 0, true)
@@ -286,15 +293,23 @@ func (table *ResultsTable) AddRows(rows [][]string) {
 		for j, cell := range row {
 			tableCell := tview.NewTableCell(cell)
 			tableCell.SetTextColor(app.Styles.PrimaryTextColor)
+			tableCell.SetExpansion(1)
+			tableCell.SetSelectable(i > 0)
 
-			if cell == "EMPTY&" || cell == "NULL&" || cell == "DEFAULT&" {
+			isNullLike := cell == "EMPTY&" || cell == "NULL&" || cell == "DEFAULT&"
+			if isNullLike {
 				tableCell.SetText(strings.Replace(cell, "&", "", 1))
-				tableCell.SetStyle(table.GetItalicStyle())
 				tableCell.SetReference(cell)
 			}
 
-			tableCell.SetSelectable(i > 0)
-			tableCell.SetExpansion(1)
+			if i == 0 {
+				tableCell.SetBackgroundColor(colorTableHeaderBg)
+				tableCell.SetAttributes(tcell.AttrBold)
+			}
+
+			if isNullLike {
+				tableCell.SetStyle(table.GetItalicStyle().Background(tableCell.BackgroundColor))
+			}
 
 			table.SetCell(i, j, tableCell)
 		}
@@ -629,7 +644,7 @@ func (table *ResultsTable) UpdateRowsColor(headerColor tcell.Color, rowColor tce
 				cellReference := cell.GetReference()
 
 				if cellReference != nil && (cellReference == "EMPTY&" || cellReference == "NULL&" || cellReference == "DEFAULT&") && (cell.BackgroundColor != colorTableDelete && cell.BackgroundColor != colorTableChange && cell.BackgroundColor != colorTableInsert) {
-					cell.SetStyle(table.GetItalicStyle())
+					cell.SetStyle(table.GetItalicStyle().Background(cell.BackgroundColor))
 				} else {
 					cell.SetTextColor(rowColor)
 				}
@@ -1567,7 +1582,7 @@ func (table *ResultsTable) FinishSettingValue() {
 }
 
 func (table *ResultsTable) GetItalicStyle() tcell.Style {
-	return tcell.StyleDefault.Foreground(tview.Styles.InverseTextColor).Italic(true)
+	return tcell.StyleDefault.Foreground(tcell.ColorGray).Italic(true)
 }
 
 func (table *ResultsTable) ShowSidebar(show bool) {
