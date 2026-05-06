@@ -1,6 +1,7 @@
 package components
 
 import (
+	"fmt"
 	"net/url"
 
 	"github.com/gdamore/tcell/v2"
@@ -19,6 +20,9 @@ type ConnectionForm struct {
 	form           *tview.Form
 	showAdvanced   bool
 	urlFieldAdded  bool
+	profiles       []models.Profile
+	activeProfile  int
+	profileButtons *tview.Flex
 }
 
 type FormFields struct {
@@ -141,10 +145,6 @@ func NewConnectionForm(connectionPages *models.ConnectionPages) *ConnectionForm 
 	statusText := tview.NewTextView()
 	statusText.SetBorderPadding(1, 1, 0, 0)
 
-	wrapper.AddItem(addForm, 0, 1, true)
-	wrapper.AddItem(statusText, 4, 0, false)
-	wrapper.AddItem(buttonsWrapper, 3, 0, false)
-
 	form := &ConnectionForm{
 		Flex:       wrapper,
 		form:      addForm,
@@ -152,6 +152,11 @@ func NewConnectionForm(connectionPages *models.ConnectionPages) *ConnectionForm 
 	}
 
 	connectionsFormInstance = form
+
+	wrapper.AddItem(addForm, 0, 1, true)
+	wrapper.AddItem(form.createProfileButtonsArea(), 3, 0, false)
+	wrapper.AddItem(statusText, 4, 0, false)
+	wrapper.AddItem(buttonsWrapper, 3, 0, false)
 
 	wrapper.SetInputCapture(form.inputCapture(connectionPages))
 
@@ -216,7 +221,12 @@ func (form *ConnectionForm) inputCapture(connectionPages *models.ConnectionPages
 		if event.Key() == tcell.KeyEsc {
 			connectionPages.SwitchToPage(pageNameConnectionSelection)
 		} else if event.Key() == tcell.KeyF1 || event.Key() == tcell.KeyEnter {
-			connectionName := formFields.Name.GetText()
+			form.profiles[form.activeProfile] = form.getCurrentFormProfile()
+
+			connectionName := form.profiles[form.activeProfile].Name
+			if connectionName == "" {
+				connectionName = formFields.Name.GetText()
+			}
 			if connectionName == "" {
 				form.StatusText.SetText("Connection name is required").SetTextStyle(tcell.StyleDefault.Foreground(tcell.ColorRed))
 				return event
@@ -225,15 +235,16 @@ func (form *ConnectionForm) inputCapture(connectionPages *models.ConnectionPages
 			providerOption, _ := formFields.Provider.GetCurrentOption()
 			provider := providerToDriver(providerOption)
 
-			hostname := formFields.Hostname.GetText()
-			port := formFields.Port.GetText()
-			username := formFields.Username.GetText()
-			password := formFields.Password.GetText()
-			database := formFields.Database.GetText()
-			sslEnabled := formFields.SSL.IsChecked()
-			sslCert := formFields.SSLCert.GetText()
-			sslKey := formFields.SSLKey.GetText()
-			sslCA := formFields.SSLCA.GetText()
+			activeProfile := form.profiles[form.activeProfile]
+			hostname := activeProfile.Hostname
+			port := activeProfile.Port
+			username := activeProfile.Username
+			password := activeProfile.Password
+			database := activeProfile.DBName
+			sslEnabled := activeProfile.SSLEnabled
+			sslCert := activeProfile.SSLCert
+			sslKey := activeProfile.SSLKey
+			sslCA := activeProfile.SSLCA
 			readOnly := formFields.ReadOnly.IsChecked()
 
 			connectionURL, err := helpers.BuildConnectionURL(provider, username, password, hostname, port, database, sslEnabled, sslCert, sslKey, sslCA)
@@ -242,25 +253,12 @@ func (form *ConnectionForm) inputCapture(connectionPages *models.ConnectionPages
 				return event
 			}
 
-			profile := models.Profile{
-				Name:       connectionName,
-				Hostname:   hostname,
-				Port:       port,
-				Username:   username,
-				Password:   password,
-				DBName:     database,
-				SSLEnabled: sslEnabled,
-				SSLCert:    sslCert,
-				SSLKey:     sslKey,
-				SSLCA:      sslCA,
-			}
-
 			newConnection := models.Connection{
 				Name:     connectionName,
 				Provider: provider,
 				URL:      connectionURL,
 				ReadOnly: readOnly,
-				Profiles: []models.Profile{profile},
+				Profiles: form.profiles,
 			}
 
 			databases := app.App.Connections()
@@ -429,6 +427,214 @@ func (form *ConnectionForm) SetConnectionData(conn models.Connection) {
 				btn.SetLabel("Hide Advanced")
 			}
 		}
+	}
+
+	form.loadProfilesFromConnection(conn)
+}
+
+func (form *ConnectionForm) createProfileButtonsArea() *tview.Flex {
+	form.profileButtons = tview.NewFlex().SetDirection(tview.FlexColumn)
+
+	addButton := tview.NewButton("[yellow]+[dark]")
+	addButton.SetBorder(true)
+	addButton.SetSelectedFunc(func() {
+		form.showAddProfileModal()
+	})
+
+	deleteButton := tview.NewButton("[dark]-[dark]")
+	deleteButton.SetBorder(true)
+	deleteButton.SetSelectedFunc(func() {
+		form.deleteActiveProfile()
+	})
+
+	form.profileButtons.AddItem(addButton, 3, 0, false)
+	form.profileButtons.AddItem(deleteButton, 3, 0, false)
+
+	if len(form.profiles) == 0 {
+		form.profiles = append(form.profiles, models.Profile{Name: "default"})
+		form.activeProfile = 0
+	}
+	form.updateProfileButtons()
+
+	return form.profileButtons
+}
+
+func (form *ConnectionForm) updateProfileButtons() {
+	form.profileButtons.Clear()
+
+	addButton := tview.NewButton("[yellow]+[dark]")
+	addButton.SetBorder(true)
+	addButton.SetSelectedFunc(func() {
+		form.showAddProfileModal()
+	})
+
+	deleteButton := tview.NewButton("[dark]-[dark]")
+	deleteButton.SetBorder(true)
+	deleteButton.SetSelectedFunc(func() {
+		form.deleteActiveProfile()
+	})
+
+	form.profileButtons.AddItem(addButton, 3, 0, false)
+	form.profileButtons.AddItem(deleteButton, 3, 0, false)
+
+	for i, profile := range form.profiles {
+		indicator := "○"
+		textColor := app.Styles.SecondaryTextColor
+		if i == form.activeProfile {
+			indicator = "●"
+			textColor = app.Styles.PrimaryTextColor
+		}
+		btn := tview.NewButton(fmt.Sprintf("%s %s", indicator, profile.Name))
+		btn.SetStyle(tcell.StyleDefault.Foreground(textColor))
+		btn.SetBorder(true)
+		idx := i
+		btn.SetSelectedFunc(func() {
+			form.selectProfile(idx)
+		})
+		form.profileButtons.AddItem(btn, 0, 1, false)
+	}
+}
+
+func (form *ConnectionForm) showAddProfileModal() {
+	modal := tview.NewModal()
+	modal.SetText("Enter profile name:")
+	modal.AddButtons([]string{"OK", "Cancel"})
+	modal.SetBackgroundColor(app.Styles.PrimitiveBackgroundColor)
+	modal.SetButtonActivatedStyle(tcell.StyleDefault.
+		Background(app.Styles.InverseTextColor).
+		Foreground(app.Styles.ContrastSecondaryTextColor),
+	)
+	modal.SetTextColor(app.Styles.PrimaryTextColor)
+
+	inputField := tview.NewInputField()
+	inputField.SetLabel("Name: ")
+	inputField.SetFieldBackgroundColor(app.Styles.InverseTextColor)
+	inputField.SetFieldTextColor(app.Styles.ContrastSecondaryTextColor)
+	inputField.SetLabelColor(app.Styles.PrimaryTextColor)
+
+	modalWrapper := tview.NewFlex().SetDirection(tview.FlexRow)
+	modalWrapper.AddItem(inputField, 1, 0, true)
+	modalWrapper.AddItem(modal, 1, 0, false)
+
+	mainPages.AddPage("addProfileModal", modalWrapper, true, true)
+	app.App.SetFocus(inputField)
+
+	modal.SetDoneFunc(func(buttonIndex int, buttonLabel string) {
+		mainPages.RemovePage("addProfileModal")
+		if buttonLabel == "OK" {
+			profileName := inputField.GetText()
+			if profileName != "" {
+				form.addProfile(profileName)
+			}
+		}
+	})
+}
+
+func (form *ConnectionForm) addProfile(name string) {
+	currentProfile := form.getCurrentFormProfile()
+	currentProfile.Name = name
+	form.profiles = append(form.profiles, currentProfile)
+	form.activeProfile = len(form.profiles) - 1
+	form.updateProfileButtons()
+}
+
+func (form *ConnectionForm) selectProfile(index int) {
+	if index < 0 || index >= len(form.profiles) {
+		return
+	}
+
+	profile := form.profiles[index]
+	form.activeProfile = index
+
+	formFields.Hostname.SetText(profile.Hostname)
+	formFields.Port.SetText(profile.Port)
+	formFields.Username.SetText(profile.Username)
+	formFields.Password.SetText(profile.Password)
+	formFields.Database.SetText(profile.DBName)
+	formFields.SSL.SetChecked(profile.SSLEnabled)
+	form.handleSSLChange(profile.SSLEnabled)
+	formFields.SSLCert.SetText(profile.SSLCert)
+	formFields.SSLKey.SetText(profile.SSLKey)
+	formFields.SSLCA.SetText(profile.SSLCA)
+
+	providerName := driverToProvider(profile.Provider)
+	for i, p := range providers {
+		if p == providerName {
+			formFields.Provider.SetCurrentOption(i)
+			form.handleProviderChange(p)
+			break
+		}
+	}
+
+	form.updateProfileButtons()
+}
+
+func (form *ConnectionForm) deleteActiveProfile() {
+	if len(form.profiles) <= 1 {
+		return
+	}
+
+	form.profiles = append(form.profiles[:form.activeProfile], form.profiles[form.activeProfile+1:]...)
+	if form.activeProfile >= len(form.profiles) {
+		form.activeProfile = len(form.profiles) - 1
+	}
+
+	form.selectProfile(form.activeProfile)
+	form.updateProfileButtons()
+}
+
+func (form *ConnectionForm) getCurrentFormProfile() models.Profile {
+	providerOption, _ := formFields.Provider.GetCurrentOption()
+	provider := providerToDriver(providerOption)
+
+	return models.Profile{
+		Name:       formFields.Name.GetText(),
+		Provider:   provider,
+		Hostname:   formFields.Hostname.GetText(),
+		Port:       formFields.Port.GetText(),
+		Username:   formFields.Username.GetText(),
+		Password:   formFields.Password.GetText(),
+		DBName:     formFields.Database.GetText(),
+		SSLEnabled: formFields.SSL.IsChecked(),
+		SSLCert:    formFields.SSLCert.GetText(),
+		SSLKey:     formFields.SSLKey.GetText(),
+		SSLCA:      formFields.SSLCA.GetText(),
+	}
+}
+
+func (form *ConnectionForm) loadProfilesFromConnection(conn models.Connection) {
+	form.profiles = nil
+	form.activeProfile = 0
+
+	if len(conn.Profiles) > 0 {
+		for _, p := range conn.Profiles {
+			form.profiles = append(form.profiles, p)
+		}
+		form.activeProfile = 0
+	} else {
+		profile := models.Profile{Name: conn.Name}
+		if conn.URL != "" {
+			parsed, err := helpers.ParseConnectionString(conn.URL)
+			if err == nil {
+				profile.Hostname = parsed.Hostname()
+				profile.Port = parsed.Port()
+				if parsed.User != nil {
+					profile.Username = parsed.User.Username()
+					profile.Password, _ = parsed.User.Password()
+				}
+				profile.DBName = parsed.Query().Get("dbname")
+				if profile.DBName == "" {
+					profile.DBName = parsed.Query().Get("database")
+				}
+			}
+		} else {
+			profile.Hostname = conn.Hostname
+			profile.Port = conn.Port
+			profile.Username = conn.Username
+			profile.Password = conn.Password
+			profile.DBName = conn.DBName
+		}
+		form.profiles = append(form.profiles, profile)
 	}
 }
 
