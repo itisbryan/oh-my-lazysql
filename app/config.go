@@ -8,8 +8,10 @@ import (
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
+	"github.com/xo/dburl"
 
 	"github.com/jorgerojas26/lazysql/drivers"
+	"github.com/jorgerojas26/lazysql/helpers"
 	"github.com/jorgerojas26/lazysql/models"
 )
 
@@ -172,6 +174,22 @@ func LoadConfig(configFile string) error {
 
 	for i, conn := range App.config.Connections {
 		App.config.Connections[i].URL = parseConfigURL(&conn)
+
+		if len(conn.Profiles) == 0 && conn.URL != "" {
+			parsed, err := helpers.ParseConnectionString(conn.URL)
+			if err == nil {
+				App.config.Connections[i].Profiles = []models.Profile{
+					{
+						Name:     "default",
+						Hostname: parsed.Hostname(),
+						Port:     parsed.Port(),
+						Username: parsed.User.Username(),
+						DBName:   extractDBName(parsed),
+						Provider: conn.Provider,
+					},
+				}
+			}
+		}
 	}
 
 	if err := ApplyKeymapConfig(App.config.Keymaps); err != nil {
@@ -236,4 +254,12 @@ func parseConfigURL(conn *models.Connection) string {
 		conn.DBName,
 		conn.URLParams,
 	)
+}
+
+func extractDBName(parsed *dburl.URL) string {
+	dbName := strings.Split(parsed.Normalize(",", "NULL", 0), ",")[3]
+	if dbName == "NULL" {
+		return ""
+	}
+	return dbName
 }
