@@ -23,7 +23,7 @@ type Connection struct {
 	URL string
 
 	// or parse manually
-	Provider  string
+	Provider string
 	Username  string
 	Password  string
 	Hostname  string
@@ -33,11 +33,13 @@ type Connection struct {
 
 	ReadOnly bool
 
+	Profiles []Profile
+
 	// Schemas filters the schemas shown in the tree (PostgreSQL/MSSQL only).
 	// If empty, all schemas are shown.
 	Schemas []string
 
-	Commands []*Command
+Commands []*Command
 }
 
 type KeymapConfig map[string]map[string]string
@@ -47,6 +49,19 @@ type Command struct {
 	WaitForPort  string
 	SaveOutputTo string
 	Timeout      int // Timeout in seconds for command to start (default: 5)
+}
+
+type Profile struct {
+	Name       string
+	Hostname   string
+	Port       string
+	Username   string
+	Password   string
+	DBName     string
+	SSLEnabled bool
+	SSLCert    string
+	SSLKey     string
+	SSLCA      string
 }
 
 type StateChange struct {
