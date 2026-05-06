@@ -10,6 +10,7 @@ import (
 type HomeModel struct {
 	connection models.Connection
 	tree       TreeModel
+	editor     EditorModel
 	width      int
 	height     int
 	focus      string
@@ -23,6 +24,7 @@ func NewHomeModel(data any) HomeModel {
 	return HomeModel{
 		connection: conn,
 		tree:       NewTreeModel(),
+		editor:     NewEditorModel(),
 		focus:      "tree",
 	}
 }
@@ -42,7 +44,12 @@ func (m HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 	}
-	return m, nil
+
+	var cmd tea.Cmd
+	var _ tea.Model
+	_, _ = m.tree.Update(msg)
+	_, _ = m.editor.Update(msg)
+	return m, cmd
 }
 
 func (m HomeModel) View() string {
@@ -58,7 +65,7 @@ func (m HomeModel) View() string {
 		Height(m.height/2 - 1).
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#666A7E")).
-		Render("SQL Editor")
+		Render(m.editor.View())
 
 	resultsPanel := lipgloss.NewStyle().
 		Width(m.width*2/3 - 1).
