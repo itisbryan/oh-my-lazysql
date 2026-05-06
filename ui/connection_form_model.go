@@ -99,8 +99,10 @@ func NewConnectionFormModel(data any) *ConnectionFormModel {
 		url:          tiURL,
 		profiles:     NewProfileSelector(),
 		action:       "new",
-		focusIndex:   0,
+		focusIndex:   1,
 	}
+
+	m.name.Focus()
 
 	if conn, ok := data.(models.Connection); ok && conn.Name != "" {
 		m.action = "edit"
@@ -146,19 +148,33 @@ func (m *ConnectionFormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "tab":
 			m.focusIndex = (m.focusIndex + 1) % 10
+			m.updateFocus()
 		case "shift+tab":
 			m.focusIndex = (m.focusIndex - 1 + 10) % 10
+			m.updateFocus()
 		case "up", "k":
-			m.focusIndex = (m.focusIndex - 1 + 10) % 10
+			if m.focusIndex > 1 {
+				m.focusIndex = (m.focusIndex - 1 + 10) % 10
+				m.updateFocus()
+			}
 		case "down", "j":
-			m.focusIndex = (m.focusIndex + 1) % 10
+			if m.focusIndex < 8 {
+				m.focusIndex = (m.focusIndex + 1) % 10
+				m.updateFocus()
+			}
 		case "left", "h":
 			if m.focusIndex == 0 {
 				m.providerIdx = (m.providerIdx - 1 + len(providers)) % len(providers)
+			} else if m.focusIndex > 1 {
+				m.focusIndex--
+				m.updateFocus()
 			}
 		case "right", "l":
 			if m.focusIndex == 0 {
 				m.providerIdx = (m.providerIdx + 1) % len(providers)
+			} else if m.focusIndex < 8 {
+				m.focusIndex++
+				m.updateFocus()
 			}
 		case "ctrl+s":
 			return m, m.saveConnection
@@ -173,6 +189,7 @@ func (m *ConnectionFormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	oldFocusedField := m.focusIndexToField()
 	m.name, cmd = m.name.Update(msg)
 	m.hostname, cmd = m.hostname.Update(msg)
 	m.port, cmd = m.port.Update(msg)
@@ -184,7 +201,65 @@ func (m *ConnectionFormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.sslCA, cmd = m.sslCA.Update(msg)
 	m.url, cmd = m.url.Update(msg)
 
+	if oldFocusedField != m.focusIndexToField() {
+		m.updateFocus()
+	}
+
 	return m, cmd
+}
+
+func (m *ConnectionFormModel) focusIndexToField() int {
+	switch m.focusIndex {
+	case 1:
+		return 1
+	case 2:
+		return 2
+	case 3:
+		return 3
+	case 4:
+		return 4
+	case 5:
+		return 5
+	case 6:
+		return 6
+	case 7:
+		return 7
+	case 8:
+		return 8
+	default:
+		return 0
+	}
+}
+
+func (m *ConnectionFormModel) updateFocus() {
+	m.name.Blur()
+	m.hostname.Blur()
+	m.port.Blur()
+	m.username.Blur()
+	m.password.Blur()
+	m.database.Blur()
+	m.sslCert.Blur()
+	m.sslKey.Blur()
+	m.sslCA.Blur()
+
+	switch m.focusIndex {
+	case 1:
+		m.name.Focus()
+	case 2:
+		m.hostname.Focus()
+	case 3:
+		m.port.Focus()
+	case 4:
+		m.username.Focus()
+	case 5:
+		m.password.Focus()
+	case 6:
+		m.database.Focus()
+	case 7:
+		m.sslCert.Focus()
+	case 8:
+		m.sslKey.Focus()
+	}
 }
 
 func (m ConnectionFormModel) saveConnection() tea.Msg {
