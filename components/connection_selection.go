@@ -125,8 +125,8 @@ func NewConnectionSelection(connectionForm *ConnectionForm, connectionPages *mod
 		switch command {
 		case commands.NewConnection:
 			connectionForm.SetAction(actionNewConnection)
-			connectionForm.GetFormItemByLabel("Name").(*tview.InputField).SetText("")
-			connectionForm.GetFormItemByLabel("URL").(*tview.InputField).SetText("")
+			connectionForm.form.GetFormItemByLabel("Name").(*tview.InputField).SetText("")
+			connectionForm.form.GetFormItemByLabel("URL").(*tview.InputField).SetText("")
 			connectionForm.StatusText.SetText("")
 			connectionPages.SwitchToPage(pageNameConnectionForm)
 		case commands.Quit:
