@@ -1,20 +1,18 @@
-//go:build !bubbletea
-// +build !bubbletea
-
 package main
 
 import (
 	"flag"
-	"fmt"
 	"io"
 	"log"
 	"os"
 
 	"github.com/go-sql-driver/mysql"
+	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/jorgerojas26/lazysql/app"
-	"github.com/jorgerojas26/lazysql/components"
 	"github.com/jorgerojas26/lazysql/helpers/logger"
+	"github.com/jorgerojas26/lazysql/models"
+	"github.com/jorgerojas26/lazysql/ui"
 )
 
 var version = "dev"
@@ -23,17 +21,6 @@ func main() {
 	defaultConfigPath, err := app.DefaultConfigFile()
 	if err != nil {
 		log.Fatalf("Error getting default config file: %v", err)
-	}
-	flag.Usage = func() {
-		f := flag.CommandLine.Output()
-		fmt.Fprintln(f, "lazysql")
-		fmt.Fprintln(f, "")
-		fmt.Fprintf(f, "Usage:  %s [options] [connection_url]\n\n", os.Args[0])
-		fmt.Fprintln(f, "  connection_url")
-		fmt.Fprintln(f, "        database URL to connect to. Omit to start in picker mode")
-		fmt.Fprintln(f, "")
-		fmt.Fprintln(f, "Options:")
-		flag.PrintDefaults()
 	}
 	configFile := flag.String("config", defaultConfigPath, "config file to use")
 	printVersion := flag.Bool("version", false, "Show version")
@@ -65,31 +52,27 @@ func main() {
 		log.Fatalf("Error setting MySQL logger: %v", err)
 	}
 
-	// First load the config.
-	if err = app.LoadConfig(*configFile); err != nil {
+	if err := app.LoadConfig(*configFile); err != nil {
 		log.Fatalf("Error loading config: %v", err)
 	}
 
-	// Now we can initialize the main pages.
-	mainPages := components.MainPages()
+	var initModel tea.Model
+	initModel = ui.NewRootModel()
 
-	// Parse the command line arguments.
 	args := flag.Args()
-
-	switch len(args) {
-	case 0:
-		// Launch into the connection picker.
-	case 1:
-		// Set a connection from the command line.
-		err := components.InitFromArg(args[0], *readOnly)
-		if err != nil {
-			log.Fatal(err)
+	if len(args) == 1 {
+		conn := models.Connection{
+			Name:     "CLI Connection",
+			URL:      args[0],
+			ReadOnly: *readOnly,
 		}
-	default:
+		initModel = ui.NewHomeModel(conn)
+	} else if len(args) > 1 {
 		log.Fatal("Only a single connection is allowed")
 	}
 
-	if err = app.App.Run(mainPages, *configFile); err != nil {
+	p := tea.NewProgram(initModel, tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
 		log.Fatalf("Error running app: %v", err)
 	}
 }
