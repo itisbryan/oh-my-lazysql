@@ -1,3 +1,6 @@
+//go:build !bubbletea
+// +build !bubbletea
+
 package main
 
 import (

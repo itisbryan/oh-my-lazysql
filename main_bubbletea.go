@@ -1,10 +1,10 @@
 //go:build bubbletea
+// +build bubbletea
 
 package main
 
 import (
 	"flag"
-	"fmt"
 	"io"
 	"log"
 	"os"
