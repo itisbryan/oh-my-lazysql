@@ -1,7 +1,7 @@
 package components
 
 import (
-	"charm.land/bubbles/v2/textinput"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -9,9 +9,9 @@ import (
 )
 
 type InputModel struct {
-	Label string
-	Input textinput.Model
-	Focus bool
+	Label   string
+	Input   textinput.Model
+	focused bool
 }
 
 func NewInput(label string, placeholder string) InputModel {
@@ -25,13 +25,13 @@ func NewInput(label string, placeholder string) InputModel {
 }
 
 func (m InputModel) Focus() InputModel {
-	m.Focus = true
+	m.focused = true
 	m.Input.Focus()
 	return m
 }
 
 func (m InputModel) Blur() InputModel {
-	m.Focus = false
+	m.focused = false
 	m.Input.Blur()
 	return m
 }
