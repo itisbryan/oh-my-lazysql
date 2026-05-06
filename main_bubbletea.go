@@ -14,6 +14,7 @@ import (
 
 	"github.com/jorgerojas26/lazysql/app"
 	"github.com/jorgerojas26/lazysql/helpers/logger"
+	"github.com/jorgerojas26/lazysql/models"
 	"github.com/jorgerojas26/lazysql/ui"
 )
 
@@ -58,11 +59,22 @@ func main() {
 		log.Fatalf("Error loading config: %v", err)
 	}
 
-	args := flag.Args()
-	_ = args
-	_ = readOnly
+	var initModel tea.Model
+	initModel = ui.NewRootModel()
 
-	p := tea.NewProgram(ui.NewRootModel(), tea.WithAltScreen())
+	args := flag.Args()
+	if len(args) == 1 {
+		conn := models.Connection{
+			Name:    "CLI Connection",
+			URL:     args[0],
+			ReadOnly: *readOnly,
+		}
+		initModel = ui.NewHomeModel(conn)
+	} else if len(args) > 1 {
+		log.Fatal("Only a single connection is allowed")
+	}
+
+	p := tea.NewProgram(initModel, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		log.Fatalf("Error running app: %v", err)
 	}
