@@ -19,17 +19,17 @@ type ConnectionListModel struct {
 	statusErr   bool
 }
 
-func NewConnectionListModel() ConnectionListModel {
-	return ConnectionListModel{
+func NewConnectionListModel() *ConnectionListModel {
+	return &ConnectionListModel{
 		connections: app.App.Connections(),
 	}
 }
 
-func (m ConnectionListModel) Init() tea.Cmd {
+func (m *ConnectionListModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m ConnectionListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *ConnectionListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -82,7 +82,7 @@ func (m ConnectionListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m ConnectionListModel) View() string {
+func (m *ConnectionListModel) View() string {
 	header := TitleStyle.Render("Connections")
 	subtitle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888")).Render("Select a connection to start")
 

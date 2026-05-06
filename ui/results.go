@@ -20,7 +20,7 @@ type ResultsModel struct {
 	totalRows int
 }
 
-func NewResultsModel() ResultsModel {
+func NewResultsModel() *ResultsModel {
 	cols := []table.Column{
 		{Title: "Column 1", Width: 20},
 		{Title: "Column 2", Width: 20},
@@ -34,17 +34,17 @@ func NewResultsModel() ResultsModel {
 		{"Row 2 Col 1", "Row 2 Col 2", "Row 2 Col 3"},
 	})
 
-	return ResultsModel{
+	return &ResultsModel{
 		columns:  cols,
 		pageSize: 100,
 	}
 }
 
-func (m ResultsModel) Init() tea.Cmd {
+func (m *ResultsModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m ResultsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *ResultsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -72,7 +72,7 @@ func (m ResultsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m ResultsModel) View() string {
+func (m *ResultsModel) View() string {
 	pagination := ""
 	if m.totalRows > 0 {
 		pagination = fmt.Sprintf("Page %d | Rows %d-%d of %d",

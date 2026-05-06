@@ -57,8 +57,8 @@ var treeIcons = map[TreeNodeType]string{
 	NodeTypeView:      "[V]",
 }
 
-func NewTreeModel() TreeModel {
-	return TreeModel{
+func NewTreeModel() *TreeModel {
+	return &TreeModel{
 		root: &TreeNode{
 			Type:     NodeTypeRoot,
 			Name:     "databases",
@@ -70,11 +70,11 @@ func NewTreeModel() TreeModel {
 	}
 }
 
-func (m TreeModel) Init() tea.Cmd {
+func (m *TreeModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m TreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *TreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -109,7 +109,7 @@ func (m *TreeModel) toggleExpanded(idx int) {
 	_ = idx
 }
 
-func (m TreeModel) View() string {
+func (m *TreeModel) View() string {
 	if len(m.flattened) == 0 {
 		return lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#888888")).

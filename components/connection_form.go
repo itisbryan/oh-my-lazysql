@@ -15,7 +15,7 @@ import (
 
 type ConnectionForm struct {
 	*tview.Flex
-	StatusText     *tview.TextView
+	StatusText      *tview.TextView
 	Action         string
 	form           *tview.Form
 	showAdvanced   bool
@@ -23,28 +23,31 @@ type ConnectionForm struct {
 	profiles       []models.Profile
 	activeProfile  int
 	profileButtons *tview.Flex
+	providerIndex  int
+	providerRow    *tview.Flex
 }
 
 type FormFields struct {
-	Name      *tview.InputField
-	Provider  *tview.DropDown
-	Hostname  *tview.InputField
-	Port      *tview.InputField
-	Username  *tview.InputField
-	Password  *tview.InputField
-	Database  *tview.InputField
-	SSL       *tview.Checkbox
-	ReadOnly  *tview.Checkbox
-	URL       *tview.InputField
-	SSLCert   *tview.InputField
-	SSLKey    *tview.InputField
-	SSLCA     *tview.InputField
+	Name     *tview.InputField
+	Hostname *tview.InputField
+	Port     *tview.InputField
+	Username *tview.InputField
+	Password *tview.InputField
+	Database *tview.InputField
+	SSL      *tview.Checkbox
+	ReadOnly *tview.Checkbox
+	URL      *tview.InputField
+	SSLCert  *tview.InputField
+	SSLKey   *tview.InputField
+	SSLCA    *tview.InputField
 }
 
 var providers = []string{"MySQL", "PostgreSQL", "SQLite", "MSSQL"}
 
 var formFields *FormFields
 var connectionsFormInstance *ConnectionForm
+
+var providerButtons []*tview.Button
 
 func providerToDriver(p int) string {
 	switch p {
@@ -61,61 +64,92 @@ func providerToDriver(p int) string {
 	}
 }
 
+func providerToDefaultPort(p int) string {
+	switch p {
+	case 0:
+		return "3306"
+	case 1:
+		return "5432"
+	case 2:
+		return ""
+	case 3:
+		return "1433"
+	default:
+		return ""
+	}
+}
+
+func providerLabel(idx int) string {
+	if idx >= 0 && idx < len(providers) {
+		return providers[idx]
+	}
+	return providers[0]
+}
+
 func NewConnectionForm(connectionPages *models.ConnectionPages) *ConnectionForm {
 	wrapper := tview.NewFlex()
 	wrapper.SetDirection(tview.FlexColumnCSS)
+
+	statusText := tview.NewTextView()
+	statusText.SetBorderPadding(1, 1, 0, 0)
+
+	form := &ConnectionForm{
+		Flex:       wrapper,
+		StatusText: statusText,
+	}
+
+	connectionsFormInstance = form
+	formFields = &FormFields{}
 
 	addForm := tview.NewForm().
 		SetFieldBackgroundColor(app.Styles.InverseTextColor).
 		SetButtonBackgroundColor(tview.Styles.InverseTextColor).
 		SetLabelColor(tview.Styles.PrimaryTextColor).
-		SetFieldTextColor(tview.Styles.ContrastSecondaryTextColor)
+		SetFieldTextColor(app.Styles.ContrastSecondaryTextColor)
 
-	addForm.AddInputField("Name", "", 40, nil, nil)
-	addForm.AddDropDown("Provider", providers, 0, func(option string, optionIndex int) {
-		connectionsFormInstance.handleProviderChange(option)
-	})
-	addForm.AddInputField("Hostname", "", 40, nil, nil)
-	addForm.AddInputField("Port", "", 40, nil, nil)
-	addForm.AddInputField("Username", "", 40, nil, nil)
-	addForm.AddInputField("Password", "", 40, nil, nil)
-	addForm.AddInputField("Database", "", 40, nil, nil)
-	addForm.AddCheckbox("SSL Enabled", false, func(checked bool) {
+	addForm.AddInputField("Name", "", 30, nil, nil)
+	addForm.AddInputField("Hostname", "localhost", 30, nil, nil)
+	addForm.AddInputField("Port", "", 30, nil, nil)
+	addForm.AddInputField("Username", "", 30, nil, nil)
+	addForm.AddInputField("Password", "", 30, nil, nil)
+	addForm.AddInputField("Database", "", 30, nil, nil)
+	addForm.AddCheckbox("SSL", false, func(checked bool) {
 		connectionsFormInstance.handleSSLChange(checked)
 	})
 	addForm.AddCheckbox("Read-Only", false, nil)
 
-	addForm.AddButton("Show Advanced", func() {
-		connectionsFormInstance.toggleAdvancedFields()
-	})
-
-	addForm.AddInputField("SSL Cert", "", 40, nil, nil)
-	addForm.AddInputField("SSL Key", "", 40, nil, nil)
-	addForm.AddInputField("SSL CA", "", 40, nil, nil)
-
-	formFields = &FormFields{
-		Name:     addForm.GetFormItemByLabel("Name").(*tview.InputField),
-		Provider: addForm.GetFormItemByLabel("Provider").(*tview.DropDown),
-		Hostname: addForm.GetFormItemByLabel("Hostname").(*tview.InputField),
-		Port:     addForm.GetFormItemByLabel("Port").(*tview.InputField),
-		Username: addForm.GetFormItemByLabel("Username").(*tview.InputField),
-		Password: addForm.GetFormItemByLabel("Password").(*tview.InputField),
-		Database: addForm.GetFormItemByLabel("Database").(*tview.InputField),
-		SSL:      addForm.GetFormItemByLabel("SSL Enabled").(*tview.Checkbox),
-		ReadOnly: addForm.GetFormItemByLabel("Read-Only").(*tview.Checkbox),
-		SSLCert:  addForm.GetFormItemByLabel("SSL Cert").(*tview.InputField),
-		SSLKey:   addForm.GetFormItemByLabel("SSL Key").(*tview.InputField),
-		SSLCA:    addForm.GetFormItemByLabel("SSL CA").(*tview.InputField),
-	}
+	formFields.Name = addForm.GetFormItemByLabel("Name").(*tview.InputField)
+	formFields.Hostname = addForm.GetFormItemByLabel("Hostname").(*tview.InputField)
+	formFields.Port = addForm.GetFormItemByLabel("Port").(*tview.InputField)
+	formFields.Username = addForm.GetFormItemByLabel("Username").(*tview.InputField)
+	formFields.Password = addForm.GetFormItemByLabel("Password").(*tview.InputField)
+	formFields.Database = addForm.GetFormItemByLabel("Database").(*tview.InputField)
+	formFields.SSL = addForm.GetFormItemByLabel("SSL").(*tview.Checkbox)
+	formFields.ReadOnly = addForm.GetFormItemByLabel("Read-Only").(*tview.Checkbox)
 
 	formFields.Password.SetMaskCharacter('*')
-	formFields.Hostname.SetDisabled(true)
-	formFields.Port.SetDisabled(true)
-	formFields.Username.SetDisabled(true)
-	formFields.Password.SetDisabled(true)
-	formFields.SSLCert.SetDisabled(true)
-	formFields.SSLKey.SetDisabled(true)
-	formFields.SSLCA.SetDisabled(true)
+
+	form.form = addForm
+
+	providerRow := tview.NewFlex().SetDirection(tview.FlexColumn)
+	providerLabel := tview.NewTextView().SetText("Provider:").SetTextAlign(tview.AlignRight)
+	providerLabel.SetTextColor(app.Styles.PrimaryTextColor)
+	providerRow.AddItem(providerLabel, 10, 0, false)
+
+	providerButtons = make([]*tview.Button, len(providers))
+	for i, name := range providers {
+		idx := i
+		btn := tview.NewButton(fmt.Sprintf(" %s ", name))
+		btn.SetStyle(tcell.StyleDefault.Background(tcell.ColorWhite).Foreground(tcell.ColorBlack))
+		btn.SetSelectedFunc(func() {
+			form.selectProvider(idx)
+		})
+		providerButtons[i] = btn
+		providerRow.AddItem(btn, len(name)+3, 0, false)
+		providerRow.AddItem(nil, 1, 0, false)
+	}
+	form.providerRow = providerRow
+	form.selectProvider(0)
 
 	buttonsWrapper := tview.NewFlex().SetDirection(tview.FlexColumn)
 
@@ -137,25 +171,21 @@ func NewConnectionForm(connectionPages *models.ConnectionPages) *ConnectionForm 
 	buttonsWrapper.AddItem(connectButton, 0, 1, false)
 	buttonsWrapper.AddItem(nil, 1, 0, false)
 
+	advancedButton := tview.NewButton("[yellow]F4 [dark]Advanced")
+	advancedButton.SetStyle(tcell.StyleDefault.Background(app.Styles.PrimaryTextColor))
+	advancedButton.SetBorder(true)
+	buttonsWrapper.AddItem(advancedButton, 0, 1, false)
+	buttonsWrapper.AddItem(nil, 1, 0, false)
+
 	cancelButton := tview.NewButton("[yellow]Esc [dark]Cancel")
 	cancelButton.SetStyle(tcell.StyleDefault.Background(tcell.Color(app.Styles.PrimaryTextColor)))
 	cancelButton.SetBorder(true)
 	buttonsWrapper.AddItem(cancelButton, 0, 1, false)
 
-	statusText := tview.NewTextView()
-	statusText.SetBorderPadding(1, 1, 0, 0)
-
-	form := &ConnectionForm{
-		Flex:       wrapper,
-		form:      addForm,
-		StatusText: statusText,
-	}
-
-	connectionsFormInstance = form
-
-	wrapper.AddItem(addForm, 0, 1, true)
 	wrapper.AddItem(form.createProfileButtonsArea(), 3, 0, false)
-	wrapper.AddItem(statusText, 4, 0, false)
+	wrapper.AddItem(providerRow, 3, 0, false)
+	wrapper.AddItem(addForm, 0, 1, true)
+	wrapper.AddItem(statusText, 2, 0, false)
 	wrapper.AddItem(buttonsWrapper, 3, 0, false)
 
 	wrapper.SetInputCapture(form.inputCapture(connectionPages))
@@ -163,7 +193,37 @@ func NewConnectionForm(connectionPages *models.ConnectionPages) *ConnectionForm 
 	return form
 }
 
+func (form *ConnectionForm) selectProvider(idx int) {
+	form.providerIndex = idx
+
+	for i, btn := range providerButtons {
+		if i == idx {
+			btn.SetStyle(tcell.StyleDefault.Background(app.Styles.PrimaryTextColor).Foreground(app.Styles.ContrastSecondaryTextColor).Bold(true))
+		} else {
+			btn.SetStyle(tcell.StyleDefault.Background(tcell.ColorWhite).Foreground(tcell.ColorBlack))
+		}
+	}
+
+	provider := providers[idx]
+	form.handleProviderChange(provider)
+
+	formFields.Port.SetText(providerToDefaultPort(idx))
+
+	if provider == "SQLite" {
+		formFields.Hostname.SetText("")
+		formFields.Username.SetText("")
+		formFields.Password.SetText("")
+	} else {
+		formFields.Hostname.SetText("localhost")
+	}
+
+	app.App.ForceDraw()
+}
+
 func (form *ConnectionForm) handleProviderChange(provider string) {
+	if formFields == nil || formFields.Hostname == nil {
+		return
+	}
 	isSQLite := provider == "SQLite"
 
 	formFields.Hostname.SetDisabled(isSQLite)
@@ -176,12 +236,47 @@ func (form *ConnectionForm) handleProviderChange(provider string) {
 		formFields.SSL.SetChecked(false)
 		form.handleSSLChange(false)
 	}
+
+	form.removeSSLFields()
 }
 
 func (form *ConnectionForm) handleSSLChange(enabled bool) {
-	formFields.SSLCert.SetDisabled(!enabled)
-	formFields.SSLKey.SetDisabled(!enabled)
-	formFields.SSLCA.SetDisabled(!enabled)
+	if formFields == nil {
+		return
+	}
+
+	if enabled {
+		form.addSSLFields()
+	} else {
+		form.removeSSLFields()
+	}
+}
+
+func (form *ConnectionForm) addSSLFields() {
+	if form.form.GetFormItemByLabel("SSL Cert") == nil {
+		form.form.AddInputField("SSL Cert", "", 30, nil, nil)
+		formFields.SSLCert = form.form.GetFormItemByLabel("SSL Cert").(*tview.InputField)
+	}
+	if form.form.GetFormItemByLabel("SSL Key") == nil {
+		form.form.AddInputField("SSL Key", "", 30, nil, nil)
+		formFields.SSLKey = form.form.GetFormItemByLabel("SSL Key").(*tview.InputField)
+	}
+	if form.form.GetFormItemByLabel("SSL CA") == nil {
+		form.form.AddInputField("SSL CA", "", 30, nil, nil)
+		formFields.SSLCA = form.form.GetFormItemByLabel("SSL CA").(*tview.InputField)
+	}
+}
+
+func (form *ConnectionForm) removeSSLFields() {
+	for _, label := range []string{"SSL Cert", "SSL Key", "SSL CA"} {
+		idx := form.form.GetFormItemIndex(label)
+		if idx >= 0 {
+			form.form.RemoveFormItem(idx)
+		}
+	}
+	formFields.SSLCert = nil
+	formFields.SSLKey = nil
+	formFields.SSLCA = nil
 }
 
 func (form *ConnectionForm) toggleAdvancedFields() {
@@ -189,7 +284,7 @@ func (form *ConnectionForm) toggleAdvancedFields() {
 
 	if form.showAdvanced {
 		if !form.urlFieldAdded {
-			form.form.AddInputField("URL", "", 60, nil, nil)
+			form.form.AddInputField("URL", "", 50, nil, nil)
 			formFields.URL = form.form.GetFormItemByLabel("URL").(*tview.InputField)
 			form.urlFieldAdded = true
 		}
@@ -203,17 +298,6 @@ func (form *ConnectionForm) toggleAdvancedFields() {
 			formFields.URL = nil
 		}
 	}
-
-	for i := 0; i < form.form.GetButtonCount(); i++ {
-		btn := form.form.GetButton(i)
-		if btn != nil && btn.GetLabel() == "Show Advanced" {
-			if form.showAdvanced {
-				btn.SetLabel("Hide Advanced")
-			} else {
-				btn.SetLabel("Show Advanced")
-			}
-		}
-	}
 }
 
 func (form *ConnectionForm) inputCapture(connectionPages *models.ConnectionPages) func(event *tcell.EventKey) *tcell.EventKey {
@@ -223,17 +307,13 @@ func (form *ConnectionForm) inputCapture(connectionPages *models.ConnectionPages
 		} else if event.Key() == tcell.KeyF1 || event.Key() == tcell.KeyEnter {
 			form.profiles[form.activeProfile] = form.getCurrentFormProfile()
 
-			connectionName := form.profiles[form.activeProfile].Name
-			if connectionName == "" {
-				connectionName = formFields.Name.GetText()
-			}
+			connectionName := formFields.Name.GetText()
 			if connectionName == "" {
 				form.StatusText.SetText("Connection name is required").SetTextStyle(tcell.StyleDefault.Foreground(tcell.ColorRed))
 				return event
 			}
 
-			providerOption, _ := formFields.Provider.GetCurrentOption()
-			provider := providerToDriver(providerOption)
+			provider := providerToDriver(form.providerIndex)
 
 			activeProfile := form.profiles[form.activeProfile]
 			hostname := activeProfile.Hostname
@@ -247,10 +327,17 @@ func (form *ConnectionForm) inputCapture(connectionPages *models.ConnectionPages
 			sslCA := activeProfile.SSLCA
 			readOnly := formFields.ReadOnly.IsChecked()
 
-			connectionURL, err := helpers.BuildConnectionURL(provider, username, password, hostname, port, database, sslEnabled, sslCert, sslKey, sslCA)
-			if err != nil {
-				form.StatusText.SetText(err.Error()).SetTextStyle(tcell.StyleDefault.Foreground(tcell.ColorRed))
-				return event
+			var connectionURL string
+			var err error
+
+			if form.showAdvanced && formFields.URL != nil && formFields.URL.GetText() != "" {
+				connectionURL = formFields.URL.GetText()
+			} else {
+				connectionURL, err = helpers.BuildConnectionURL(provider, username, password, hostname, port, database, sslEnabled, sslCert, sslKey, sslCA)
+				if err != nil {
+					form.StatusText.SetText(err.Error()).SetTextStyle(tcell.StyleDefault.Foreground(tcell.ColorRed))
+					return event
+				}
 			}
 
 			newConnection := models.Connection{
@@ -291,22 +378,41 @@ func (form *ConnectionForm) inputCapture(connectionPages *models.ConnectionPages
 
 			connectionsTable.SetConnections(newDatabases)
 			connectionPages.SwitchToPage(pageNameConnectionSelection)
+
 		} else if event.Key() == tcell.KeyF2 {
-			providerOption, _ := formFields.Provider.GetCurrentOption()
-			provider := providerToDriver(providerOption)
+			provider := providerToDriver(form.providerIndex)
 			hostname := formFields.Hostname.GetText()
 			port := formFields.Port.GetText()
 			username := formFields.Username.GetText()
 			password := formFields.Password.GetText()
 			database := formFields.Database.GetText()
 			sslEnabled := formFields.SSL.IsChecked()
-			sslCert := formFields.SSLCert.GetText()
-			sslKey := formFields.SSLKey.GetText()
-			sslCA := formFields.SSLCA.GetText()
+			sslCert := ""
+			sslKey := ""
+			sslCA := ""
+			if formFields.SSLCert != nil {
+				sslCert = formFields.SSLCert.GetText()
+			}
+			if formFields.SSLKey != nil {
+				sslKey = formFields.SSLKey.GetText()
+			}
+			if formFields.SSLCA != nil {
+				sslCA = formFields.SSLCA.GetText()
+			}
 			go form.testConnection(provider, username, password, hostname, port, database, sslEnabled, sslCert, sslKey, sslCA)
+		} else if event.Key() == tcell.KeyF4 {
+			form.toggleAdvancedFields()
+		} else if event.Key() == tcell.KeyTab {
+			form.cycleProvider()
+			return nil
 		}
 		return event
 	}
+}
+
+func (form *ConnectionForm) cycleProvider() {
+	newIdx := (form.providerIndex + 1) % len(providers)
+	form.selectProvider(newIdx)
 }
 
 func (form *ConnectionForm) testConnection(provider, username, password, hostname, port, dbname string, sslEnabled bool, sslCert, sslKey, sslCA string) {
@@ -345,6 +451,27 @@ func (form *ConnectionForm) SetAction(action string) {
 	form.Action = action
 }
 
+func (form *ConnectionForm) ResetForm() {
+	formFields.Name.SetText("")
+	formFields.Hostname.SetText("localhost")
+	formFields.Port.SetText("")
+	formFields.Username.SetText("")
+	formFields.Password.SetText("")
+	formFields.Database.SetText("")
+	formFields.SSL.SetChecked(false)
+	formFields.ReadOnly.SetChecked(false)
+	form.removeSSLFields()
+	form.selectProvider(0)
+
+	if form.showAdvanced {
+		form.toggleAdvancedFields()
+	}
+
+	form.profiles = []models.Profile{{Name: "default"}}
+	form.activeProfile = 0
+	form.updateProfileButtons()
+}
+
 func (form *ConnectionForm) SetConnectionData(conn models.Connection) {
 	formFields.Name.SetText(conn.Name)
 
@@ -359,8 +486,7 @@ func (form *ConnectionForm) SetConnectionData(conn models.Connection) {
 	case drivers.DriverMSSQL:
 		providerIndex = 3
 	}
-	formFields.Provider.SetCurrentOption(providerIndex)
-	form.handleProviderChange(providers[providerIndex])
+	form.selectProvider(providerIndex)
 
 	var hostname, port, username, password, dbName string
 	var sslEnabled bool
@@ -391,7 +517,10 @@ func (form *ConnectionForm) SetConnectionData(conn models.Connection) {
 				dbName = parsed.Query().Get("database")
 			}
 			if dbName == "" {
-				dbName = parsed.Query().Get("parse")
+				path := parsed.Path
+				if path != "" && path != "/" {
+					dbName = path[1:]
+				}
 			}
 			sslStr := parsed.Query().Get("sslmode")
 			sslEnabled = sslStr != "" && sslStr != "disable"
@@ -407,25 +536,28 @@ func (form *ConnectionForm) SetConnectionData(conn models.Connection) {
 	formFields.Database.SetText(dbName)
 	formFields.SSL.SetChecked(sslEnabled)
 	form.handleSSLChange(sslEnabled)
-	formFields.SSLCert.SetText(sslCert)
-	formFields.SSLKey.SetText(sslKey)
-	formFields.SSLCA.SetText(sslCA)
+	if sslEnabled {
+		form.addSSLFields()
+		if formFields.SSLCert != nil {
+			formFields.SSLCert.SetText(sslCert)
+		}
+		if formFields.SSLKey != nil {
+			formFields.SSLKey.SetText(sslKey)
+		}
+		if formFields.SSLCA != nil {
+			formFields.SSLCA.SetText(sslCA)
+		}
+	}
 	formFields.ReadOnly.SetChecked(conn.ReadOnly)
 
-	if conn.URL != "" {
+	if conn.URL != "" && len(conn.Profiles) == 0 {
 		form.showAdvanced = true
 		if !form.urlFieldAdded {
-			form.form.AddInputField("URL", conn.URL, 60, nil, nil)
+			form.form.AddInputField("URL", conn.URL, 50, nil, nil)
 			formFields.URL = form.form.GetFormItemByLabel("URL").(*tview.InputField)
 			form.urlFieldAdded = true
 		} else if formFields.URL != nil {
 			formFields.URL.SetText(conn.URL)
-		}
-		for i := 0; i < form.form.GetButtonCount(); i++ {
-			btn := form.form.GetButton(i)
-			if btn != nil && btn.GetLabel() == "Show Advanced" {
-				btn.SetLabel("Hide Advanced")
-			}
 		}
 	}
 
@@ -434,21 +566,6 @@ func (form *ConnectionForm) SetConnectionData(conn models.Connection) {
 
 func (form *ConnectionForm) createProfileButtonsArea() *tview.Flex {
 	form.profileButtons = tview.NewFlex().SetDirection(tview.FlexColumn)
-
-	addButton := tview.NewButton("[yellow]+[dark]")
-	addButton.SetBorder(true)
-	addButton.SetSelectedFunc(func() {
-		form.showAddProfileModal()
-	})
-
-	deleteButton := tview.NewButton("[dark]-[dark]")
-	deleteButton.SetBorder(true)
-	deleteButton.SetSelectedFunc(func() {
-		form.deleteActiveProfile()
-	})
-
-	form.profileButtons.AddItem(addButton, 3, 0, false)
-	form.profileButtons.AddItem(deleteButton, 3, 0, false)
 
 	if len(form.profiles) == 0 {
 		form.profiles = append(form.profiles, models.Profile{Name: "default"})
@@ -462,31 +579,32 @@ func (form *ConnectionForm) createProfileButtonsArea() *tview.Flex {
 func (form *ConnectionForm) updateProfileButtons() {
 	form.profileButtons.Clear()
 
-	addButton := tview.NewButton("[yellow]+[dark]")
-	addButton.SetBorder(true)
+	addButton := tview.NewButton(" + ")
+	addButton.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGreen).Bold(true))
 	addButton.SetSelectedFunc(func() {
 		form.showAddProfileModal()
 	})
 
-	deleteButton := tview.NewButton("[dark]-[dark]")
-	deleteButton.SetBorder(true)
+	deleteButton := tview.NewButton(" - ")
+	deleteButton.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorRed).Bold(true))
 	deleteButton.SetSelectedFunc(func() {
 		form.deleteActiveProfile()
 	})
 
 	form.profileButtons.AddItem(addButton, 3, 0, false)
+	form.profileButtons.AddItem(nil, 1, 0, false)
 	form.profileButtons.AddItem(deleteButton, 3, 0, false)
+	form.profileButtons.AddItem(nil, 1, 0, false)
 
 	for i, profile := range form.profiles {
-		indicator := "○"
+		indicator := "○ "
 		textColor := app.Styles.SecondaryTextColor
 		if i == form.activeProfile {
-			indicator = "●"
+			indicator = "● "
 			textColor = app.Styles.PrimaryTextColor
 		}
-		btn := tview.NewButton(fmt.Sprintf("%s %s", indicator, profile.Name))
+		btn := tview.NewButton(fmt.Sprintf("%s%s", indicator, profile.Name))
 		btn.SetStyle(tcell.StyleDefault.Foreground(textColor))
-		btn.SetBorder(true)
 		idx := i
 		btn.SetSelectedFunc(func() {
 			form.selectProfile(idx)
@@ -514,7 +632,7 @@ func (form *ConnectionForm) showAddProfileModal() {
 
 	modalWrapper := tview.NewFlex().SetDirection(tview.FlexRow)
 	modalWrapper.AddItem(inputField, 1, 0, true)
-	modalWrapper.AddItem(modal, 1, 0, false)
+	modalWrapper.AddItem(modal, 0, 1, false)
 
 	mainPages.AddPage("addProfileModal", modalWrapper, true, true)
 	app.App.SetFocus(inputField)
@@ -553,15 +671,23 @@ func (form *ConnectionForm) selectProfile(index int) {
 	formFields.Database.SetText(profile.DBName)
 	formFields.SSL.SetChecked(profile.SSLEnabled)
 	form.handleSSLChange(profile.SSLEnabled)
-	formFields.SSLCert.SetText(profile.SSLCert)
-	formFields.SSLKey.SetText(profile.SSLKey)
-	formFields.SSLCA.SetText(profile.SSLCA)
+	if profile.SSLEnabled {
+		form.addSSLFields()
+		if formFields.SSLCert != nil {
+			formFields.SSLCert.SetText(profile.SSLCert)
+		}
+		if formFields.SSLKey != nil {
+			formFields.SSLKey.SetText(profile.SSLKey)
+		}
+		if formFields.SSLCA != nil {
+			formFields.SSLCA.SetText(profile.SSLCA)
+		}
+	}
 
 	providerName := driverToProvider(profile.Provider)
 	for i, p := range providers {
 		if p == providerName {
-			formFields.Provider.SetCurrentOption(i)
-			form.handleProviderChange(p)
+			form.selectProvider(i)
 			break
 		}
 	}
@@ -584,8 +710,18 @@ func (form *ConnectionForm) deleteActiveProfile() {
 }
 
 func (form *ConnectionForm) getCurrentFormProfile() models.Profile {
-	providerOption, _ := formFields.Provider.GetCurrentOption()
-	provider := providerToDriver(providerOption)
+	provider := providerToDriver(form.providerIndex)
+
+	sslCert, sslKey, sslCA := "", "", ""
+	if formFields.SSLCert != nil {
+		sslCert = formFields.SSLCert.GetText()
+	}
+	if formFields.SSLKey != nil {
+		sslKey = formFields.SSLKey.GetText()
+	}
+	if formFields.SSLCA != nil {
+		sslCA = formFields.SSLCA.GetText()
+	}
 
 	return models.Profile{
 		Name:       formFields.Name.GetText(),
@@ -596,9 +732,9 @@ func (form *ConnectionForm) getCurrentFormProfile() models.Profile {
 		Password:   formFields.Password.GetText(),
 		DBName:     formFields.Database.GetText(),
 		SSLEnabled: formFields.SSL.IsChecked(),
-		SSLCert:    formFields.SSLCert.GetText(),
-		SSLKey:     formFields.SSLKey.GetText(),
-		SSLCA:      formFields.SSLCA.GetText(),
+		SSLCert:    sslCert,
+		SSLKey:     sslKey,
+		SSLCA:      sslCA,
 	}
 }
 
@@ -612,7 +748,10 @@ func (form *ConnectionForm) loadProfilesFromConnection(conn models.Connection) {
 		}
 		form.activeProfile = 0
 	} else {
-		profile := models.Profile{Name: conn.Name}
+		profile := models.Profile{
+			Name:     conn.Name,
+			Provider: conn.Provider,
+		}
 		if conn.URL != "" {
 			parsed, err := helpers.ParseConnectionString(conn.URL)
 			if err == nil {
@@ -625,6 +764,12 @@ func (form *ConnectionForm) loadProfilesFromConnection(conn models.Connection) {
 				profile.DBName = parsed.Query().Get("dbname")
 				if profile.DBName == "" {
 					profile.DBName = parsed.Query().Get("database")
+				}
+				if profile.DBName == "" {
+					path := parsed.Path
+					if path != "" && path != "/" {
+						profile.DBName = path[1:]
+					}
 				}
 			}
 		} else {

@@ -13,18 +13,18 @@ type RootModel struct {
 	height            int
 }
 
-func NewRootModel() RootModel {
-	return RootModel{
+func NewRootModel() *RootModel {
+	return &RootModel{
 		screen:         ScreenConnectionList,
 		connectionList: NewConnectionListModel(),
 	}
 }
 
-func (m RootModel) Init() tea.Cmd {
+func (m *RootModel) Init() tea.Cmd {
 	return m.connectionList.Init()
 }
 
-func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
@@ -55,7 +55,7 @@ func (m RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m RootModel) View() string {
+func (m *RootModel) View() string {
 	switch m.screen {
 	case ScreenConnectionList:
 		return m.connectionList.View()

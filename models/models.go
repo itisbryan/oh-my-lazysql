@@ -53,6 +53,7 @@ type Command struct {
 
 type Profile struct {
 	Name       string
+	Provider   string
 	Hostname   string
 	Port       string
 	Username   string

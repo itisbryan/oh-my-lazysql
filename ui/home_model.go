@@ -9,19 +9,19 @@ import (
 
 type HomeModel struct {
 	connection models.Connection
-	tree       TreeModel
-	editor     EditorModel
+	tree       *TreeModel
+	editor     *EditorModel
 	width      int
 	height     int
 	focus      string
 }
 
-func NewHomeModel(data any) HomeModel {
+func NewHomeModel(data any) *HomeModel {
 	conn, ok := data.(models.Connection)
 	if !ok {
 		conn = models.Connection{}
 	}
-	return HomeModel{
+	return &HomeModel{
 		connection: conn,
 		tree:       NewTreeModel(),
 		editor:     NewEditorModel(),
@@ -29,11 +29,11 @@ func NewHomeModel(data any) HomeModel {
 	}
 }
 
-func (m HomeModel) Init() tea.Cmd {
+func (m *HomeModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -52,7 +52,7 @@ func (m HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m HomeModel) View() string {
+func (m *HomeModel) View() string {
 	treePanel := lipgloss.NewStyle().
 		Width(m.width/3 - 1).
 		Height(m.height - 2).

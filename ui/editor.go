@@ -13,23 +13,23 @@ type EditorModel struct {
 	focused  bool
 }
 
-func NewEditorModel() EditorModel {
+func NewEditorModel() *EditorModel {
 	ta := textarea.New()
 	ta.Placeholder = "Enter SQL query..."
 	ta.SetWidth(80)
 	ta.SetHeight(10)
 	ta.ShowLineNumbers = true
-	return EditorModel{
+	return &EditorModel{
 		textarea: ta,
 		focused:  true,
 	}
 }
 
-func (m EditorModel) Init() tea.Cmd {
+func (m *EditorModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m EditorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *EditorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -55,7 +55,7 @@ func (m EditorModel) executeQuery() tea.Msg {
 	return nil
 }
 
-func (m EditorModel) View() string {
+func (m *EditorModel) View() string {
 	content := lipgloss.JoinVertical(lipgloss.Left,
 		TitleStyle.Render("SQL Editor"),
 		m.textarea.View(),

@@ -39,7 +39,7 @@ type ConnectionFormModel struct {
 
 var providers = []string{"MySQL", "PostgreSQL", "SQLite", "MSSQL"}
 
-func NewConnectionFormModel(data any) ConnectionFormModel {
+func NewConnectionFormModel(data any) *ConnectionFormModel {
 	tiName := textinput.New()
 	tiName.Placeholder = "Connection name"
 	tiName.Width = 40
@@ -119,10 +119,10 @@ func NewConnectionFormModel(data any) ConnectionFormModel {
 		}
 	}
 
-	return m
+	return &m
 }
 
-func (m ConnectionFormModel) Init() tea.Cmd {
+func (m *ConnectionFormModel) Init() tea.Cmd {
 	return nil
 }
 
@@ -135,7 +135,7 @@ func (m ConnectionFormModel) providerIndex(provider string) int {
 	return 0
 }
 
-func (m ConnectionFormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *ConnectionFormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
@@ -213,7 +213,7 @@ func (m ConnectionFormModel) saveConnection() tea.Msg {
 	return ScreenChangeMsg{Screen: ScreenConnectionList, Data: nil}
 }
 
-func (m ConnectionFormModel) View() string {
+func (m *ConnectionFormModel) View() string {
 	providerButtons := make([]string, len(providers))
 	for i, p := range providers {
 		style := ProviderButtonStyle
