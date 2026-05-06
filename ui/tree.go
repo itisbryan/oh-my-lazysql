@@ -73,8 +73,23 @@ func NewTreeModel() *TreeModel {
 	}
 }
 
+func (m *TreeModel) SetDriver(driver drivers.Driver) {
+	m.driver = driver
+}
+
 func (m *TreeModel) Init() tea.Cmd {
-	return nil
+	if m.driver == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		databases, err := m.driver.GetDatabases()
+		if err != nil {
+			m.status = "Error loading databases: " + err.Error()
+			return nil
+		}
+		m.SetDatabases(databases)
+		return nil
+	}
 }
 
 func (m *TreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -93,7 +108,17 @@ func (m *TreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor++
 			}
 		case "enter", "right", "l":
-			m.toggleExpanded(m.cursor)
+			if m.cursor < len(m.flattened) {
+				node := m.flattened[m.cursor]
+				if node.Type == NodeTypeDatabase && !m.isExpanded(m.cursor) {
+					if m.driver != nil {
+						if err := m.LoadTables(node.Name); err != nil {
+							m.status = err.Error()
+						}
+					}
+				}
+				m.toggleExpanded(m.cursor)
+			}
 		case "left", "h":
 			if m.cursor > 0 {
 				m.cursor--
@@ -109,7 +134,28 @@ func (m *TreeModel) toggleExpanded(idx int) {
 	if idx < 0 || idx >= len(m.flattened) {
 		return
 	}
-	_ = idx
+	node := &m.flattened[idx]
+
+	for _, child := range m.root.Children {
+		if child.Name == node.Name && child.Type == NodeTypeDatabase {
+			child.Expanded = !child.Expanded
+			break
+		}
+	}
+	m.rebuildFlattened()
+}
+
+func (m *TreeModel) isExpanded(idx int) bool {
+	if idx < 0 || idx >= len(m.flattened) {
+		return false
+	}
+	node := m.flattened[idx]
+	for _, child := range m.root.Children {
+		if child.Name == node.Name && child.Type == NodeTypeDatabase {
+			return child.Expanded
+		}
+	}
+	return false
 }
 
 func (m *TreeModel) View() string {
@@ -170,11 +216,52 @@ func (m *TreeModel) SetDatabases(databases []string) {
 		m.root.Children = append(m.root.Children, &TreeNode{
 			Type:     NodeTypeDatabase,
 			Name:     db,
+			Database: db,
 			Children: []*TreeNode{},
 			Expanded: false,
 		})
 	}
 	m.rebuildFlattened()
+}
+
+func (m *TreeModel) LoadTables(dbName string) error {
+	if m.driver == nil {
+		return fmt.Errorf("no driver")
+	}
+
+	tables, err := m.driver.GetTables(dbName)
+	if err != nil {
+		return err
+	}
+
+	for _, child := range m.root.Children {
+		if child.Name == dbName {
+			child.Children = make([]*TreeNode, 0, len(tables))
+			for tableName, views := range tables {
+				tableNode := &TreeNode{
+					Type:     NodeTypeTable,
+					Name:     tableName,
+					Database: dbName,
+					Children: []*TreeNode{},
+					Expanded: false,
+				}
+
+				for _, view := range views {
+					tableNode.Children = append(tableNode.Children, &TreeNode{
+						Type:     NodeTypeView,
+						Name:     view,
+						Database: dbName,
+					})
+				}
+
+				child.Children = append(child.Children, tableNode)
+			}
+			break
+		}
+	}
+
+	m.rebuildFlattened()
+	return nil
 }
 
 func (m *TreeModel) rebuildFlattened() {
