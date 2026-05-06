@@ -34,6 +34,8 @@ func (m *RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ScreenChangeMsg:
 		m.screen = msg.Screen
 		switch msg.Screen {
+		case ScreenConnectionList:
+			m.connectionList = NewConnectionListModel()
 		case ScreenConnectionForm:
 			m.connectionForm = NewConnectionFormModel(msg.Data)
 			return m, m.connectionForm.Init()

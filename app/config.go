@@ -9,8 +9,6 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/xo/dburl"
-
-	"github.com/jorgerojas26/lazysql/drivers"
 	"github.com/jorgerojas26/lazysql/helpers"
 	"github.com/jorgerojas26/lazysql/models"
 )
@@ -173,7 +171,7 @@ func LoadConfig(configFile string) error {
 	}
 
 	for i, conn := range App.config.Connections {
-		App.config.Connections[i].URL = parseConfigURL(&conn)
+		App.config.Connections[i].URL = BuildConnectionURL(&conn)
 
 		if len(conn.Profiles) == 0 && conn.URL != "" {
 			parsed, err := helpers.ParseConnectionString(conn.URL)
@@ -228,29 +226,71 @@ func (c *Config) SaveConnections(connections []models.Connection) error {
 	return toml.NewEncoder(file).Encode(c)
 }
 
-// parseConfigURL automatically generates the URL from the connection struct
-// if the URL is empty. It is useful for handling usernames and passwords with
-// special characters. NOTE: Only MSSQL is supported for now!
-func parseConfigURL(conn *models.Connection) string {
+// BuildConnectionURL automatically generates the URL from the connection struct
+// if the URL is empty. It handles all supported database providers.
+func BuildConnectionURL(conn *models.Connection) string {
 	if conn.URL != "" {
 		return conn.URL
 	}
 
-	// Only MSSQL is supported for now.
-	if conn.Provider != drivers.DriverMSSQL {
+	if conn.Hostname == "" && conn.DBName == "" {
 		return conn.URL
+	}
+
+	urlPrefix := conn.Provider
+	switch conn.Provider {
+	case "MySQL":
+		urlPrefix = "mysql"
+	case "PostgreSQL":
+		urlPrefix = "postgres"
+	case "MSSQL", "sqlserver":
+		urlPrefix = "sqlserver"
+	case "SQLite", "sqlite3":
+		urlPrefix = "sqlite3"
+	default:
+		return conn.URL
+	}
+
+	if urlPrefix == "sqlite3" {
+		return conn.Hostname + conn.DBName + conn.URLParams
+	}
+
+	host := conn.Hostname
+	port := conn.Port
+	if port == "" {
+		if urlPrefix == "sqlserver" {
+			port = "1433"
+		} else if urlPrefix == "postgres" {
+			port = "5432"
+		} else {
+			port = "3306"
+		}
 	}
 
 	user := url.QueryEscape(conn.Username)
 	pass := url.QueryEscape(conn.Password)
 
+	if urlPrefix == "sqlserver" {
+		return fmt.Sprintf(
+			"%s://%s:%s@%s:%s?database=%s%s",
+			urlPrefix,
+			user,
+			pass,
+			host,
+			port,
+			conn.DBName,
+			conn.URLParams,
+		)
+	}
+
+	// MySQL and PostgreSQL
 	return fmt.Sprintf(
-		"%s://%s:%s@%s:%s?database=%s%s",
-		conn.Provider,
+		"%s://%s:%s@%s:%s/%s%s",
+		urlPrefix,
 		user,
 		pass,
-		conn.Hostname,
-		conn.Port,
+		host,
+		port,
 		conn.DBName,
 		conn.URLParams,
 	)

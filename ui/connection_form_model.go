@@ -152,29 +152,23 @@ func (m *ConnectionFormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "shift+tab":
 			m.focusIndex = (m.focusIndex - 1 + 10) % 10
 			m.updateFocus()
-		case "up", "k":
+		case "up":
 			if m.focusIndex > 1 {
-				m.focusIndex = (m.focusIndex - 1 + 10) % 10
-				m.updateFocus()
-			}
-		case "down", "j":
-			if m.focusIndex < 8 {
-				m.focusIndex = (m.focusIndex + 1) % 10
-				m.updateFocus()
-			}
-		case "left", "h":
-			if m.focusIndex == 0 {
-				m.providerIdx = (m.providerIdx - 1 + len(providers)) % len(providers)
-			} else if m.focusIndex > 1 {
 				m.focusIndex--
 				m.updateFocus()
 			}
-		case "right", "l":
-			if m.focusIndex == 0 {
-				m.providerIdx = (m.providerIdx + 1) % len(providers)
-			} else if m.focusIndex < 8 {
+		case "down":
+			if m.focusIndex < 8 {
 				m.focusIndex++
 				m.updateFocus()
+			}
+		case "left":
+			if m.focusIndex == 0 {
+				m.providerIdx = (m.providerIdx - 1 + len(providers)) % len(providers)
+			}
+		case "right":
+			if m.focusIndex == 0 {
+				m.providerIdx = (m.providerIdx + 1) % len(providers)
 			}
 		case "ctrl+s":
 			return m, m.saveConnection
@@ -265,15 +259,17 @@ func (m *ConnectionFormModel) updateFocus() {
 func (m ConnectionFormModel) saveConnection() tea.Msg {
 	conn := models.Connection{
 		Name:     m.name.Value(),
-		Provider:  providers[m.providerIdx],
-		Hostname:  m.hostname.Value(),
-		Port:      m.port.Value(),
-		Username:  m.username.Value(),
-		Password:  m.password.Value(),
-		DBName:    m.database.Value(),
-		ReadOnly:  m.readOnly,
-		Profiles:  m.profiles.profiles,
+		Provider: providers[m.providerIdx],
+		Hostname: m.hostname.Value(),
+		Port:     m.port.Value(),
+		Username: m.username.Value(),
+		Password: m.password.Value(),
+		DBName:   m.database.Value(),
+		ReadOnly: m.readOnly,
+		Profiles: m.profiles.profiles,
 	}
+
+	conn.URL = app.BuildConnectionURL(&conn)
 
 	if conn.Name == "" {
 		conn.Name = conn.Hostname

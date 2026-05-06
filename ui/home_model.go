@@ -63,7 +63,7 @@ func NewHomeModel(data any) *HomeModel {
 }
 
 func (m *HomeModel) Init() tea.Cmd {
-	return nil
+	return m.tree.Init()
 }
 
 func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
