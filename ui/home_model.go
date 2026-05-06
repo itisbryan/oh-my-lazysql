@@ -9,6 +9,7 @@ import (
 
 type HomeModel struct {
 	connection models.Connection
+	tree       TreeModel
 	width      int
 	height     int
 	focus      string
@@ -21,6 +22,7 @@ func NewHomeModel(data any) HomeModel {
 	}
 	return HomeModel{
 		connection: conn,
+		tree:       NewTreeModel(),
 		focus:      "tree",
 	}
 }
@@ -44,16 +46,30 @@ func (m HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m HomeModel) View() string {
-	title := TitleStyle.Render("Home - " + m.connection.Name)
-	help := HelpStyle.Render("[Q] Quit")
+	treePanel := lipgloss.NewStyle().
+		Width(m.width/3 - 1).
+		Height(m.height - 2).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#666A7E")).
+		Render(m.tree.View())
 
-	content := lipgloss.JoinVertical(lipgloss.Center,
-		title,
-		"",
-		lipgloss.NewStyle().Foreground(lipgloss.Color("#888888")).Render("Database tree, SQL editor, and results will go here"),
-		"",
-		help,
-	)
+	editorPanel := lipgloss.NewStyle().
+		Width(m.width*2/3 - 1).
+		Height(m.height/2 - 1).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#666A7E")).
+		Render("SQL Editor")
 
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+	resultsPanel := lipgloss.NewStyle().
+		Width(m.width*2/3 - 1).
+		Height(m.height/2 - 1).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#666A7E")).
+		Render("Results Table")
+
+	mainContent := lipgloss.JoinHorizontal(lipgloss.Top, treePanel, lipgloss.JoinVertical(lipgloss.Left, editorPanel, resultsPanel))
+
+	header := TitleStyle.Render("Home - " + m.connection.Name)
+
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Top, lipgloss.JoinVertical(lipgloss.Left, header, mainContent))
 }
