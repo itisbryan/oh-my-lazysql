@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -83,39 +84,10 @@ func (m *ConnectionListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *ConnectionListModel) View() string {
-	header := TitleStyle.Render("Connections")
-	subtitle := lipgloss.NewStyle().Foreground(lipgloss.Color("#888888")).Render("Select a connection to start")
-
-	rows := make([]string, len(m.connections))
-	for i, conn := range m.connections {
-		name := conn.Name
-		if name == "" {
-			name = conn.URL
-		}
-		profileCount := ""
-		if len(conn.Profiles) > 1 {
-			profileCount = fmt.Sprintf(" (%d profiles)", len(conn.Profiles))
-		}
-
-		provider := conn.Provider
-		style := lipgloss.NewStyle()
-		if i == m.cursor {
-			style = SelectedStyle
-		}
-		rows[i] = style.Render(fmt.Sprintf("  %-20s %-12s%s", name, provider, profileCount))
-	}
-
-	if len(rows) == 0 {
-		rows = append(rows, lipgloss.NewStyle().Foreground(lipgloss.Color("#888888")).Render("  No connections. Press N to add one."))
-	}
-
-	table := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#666A7E")).
-		Padding(0, 1).
-		Render(lipgloss.JoinVertical(lipgloss.Left, rows...))
-
-	help := HelpStyle.Render("[N] New  [E] Edit  [D] Delete  [Enter] Connect  [Q] Quit")
+	title := m.renderWelcomeTitle()
+	subtitle := lipgloss.NewStyle().Foreground(lipgloss.Color("#BB9AF7")).Render("database console")
+	bootMenu := m.renderBootMenu()
+	commandBar := m.renderCommandBar()
 
 	statusBar := ""
 	if m.status != "" {
@@ -126,15 +98,119 @@ func (m *ConnectionListModel) View() string {
 		statusBar = style.Render(m.status)
 	}
 
+	spacer := lipgloss.NewStyle().Height(1).Render("")
 	content := lipgloss.JoinVertical(lipgloss.Left,
-		header,
+		spacer,
+		title,
+		"  ",
 		subtitle,
-		"",
-		table,
-		"",
-		help,
+		"  ",
+		bootMenu,
+		"  ",
+		commandBar,
+		"  ",
 		statusBar,
 	)
 
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, content)
+}
+
+func (m *ConnectionListModel) renderWelcomeTitle() string {
+	name := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#BB9AF7")).
+		Bold(true).
+		Render("om-lazysql")
+	art := lipgloss.NewStyle().
+		Foreground(SecondaryTextColor).
+		Bold(true).
+		Render(strings.Join([]string{
+			`              _                       _ `,
+			` ___ _ __ ___| |__ _ ____  _ ___ __ _| |`,
+			`/ _ \ '  \___| / _` + "`" + ` |_ / || (_-</ _` + "`" + ` | |`,
+			`\___/_|_|_|  |_\__,_/__|\_, /__/\__, |_|`,
+			`                        |__/       |_|  `,
+		}, "\n"))
+	return lipgloss.JoinVertical(lipgloss.Left, name, art)
+}
+
+func (m *ConnectionListModel) renderBootMenu() string {
+	divider := lipgloss.NewStyle().Foreground(lipgloss.Color("#3B4261")).Width(54).Render("──────────────────────────────────────────────────")
+	menuRows := []string{}
+	for i, conn := range m.connections {
+		name := conn.Name
+		if name == "" {
+			name = conn.URL
+		}
+
+		cursor := " "
+		style := lipgloss.NewStyle().Foreground(PrimaryTextColor)
+		if i == m.cursor {
+			cursor = ">"
+			style = lipgloss.NewStyle().
+				Foreground(SecondaryTextColor).
+				Background(lipgloss.Color("#283457")).
+				Bold(true)
+		}
+
+		provider := providerBadge(conn.Provider)
+		database := ""
+		if conn.DBName != "" {
+			database = lipgloss.NewStyle().Foreground(InverseTextColor).Render(" // " + conn.DBName)
+		}
+		row := fmt.Sprintf("%s %-22s %s%s", cursor, name, provider, database)
+		if conn.ReadOnly {
+			row += " " + lipgloss.NewStyle().Foreground(TertiaryTextColor).Bold(true).Render("READ")
+		}
+		menuRows = append(menuRows, style.Render(row))
+		if i < len(m.connections)-1 {
+			menuRows = append(menuRows, divider)
+		}
+	}
+
+	if len(menuRows) == 0 {
+		menuRows = append(menuRows,
+			lipgloss.NewStyle().Foreground(lipgloss.Color("#F7768E")).Bold(true).Render("NO CONNECTION PROFILES FOUND"),
+			lipgloss.NewStyle().Foreground(InverseTextColor).Render("Press N to initialize a new profile"),
+		)
+	}
+
+	return lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#7AA2F7")).
+		Padding(0, 2).
+		Render(lipgloss.JoinVertical(lipgloss.Left,
+			lipgloss.NewStyle().Foreground(TertiaryTextColor).Bold(true).Render("BOOT MENU"),
+			lipgloss.NewStyle().Foreground(InverseTextColor).Render("Select profile and press ENTER"),
+			"",
+			lipgloss.JoinVertical(lipgloss.Left, menuRows...),
+		))
+}
+
+func (m *ConnectionListModel) renderCommandBar() string {
+	return lipgloss.NewStyle().
+		Foreground(PrimaryTextColor).
+		Background(lipgloss.Color("#161B2D")).
+		Padding(0, 2).
+		Render(lipgloss.JoinHorizontal(lipgloss.Left,
+			KeyStyle.Render("N"), HelpStyle.Render(":new   "),
+			KeyStyle.Render("E"), HelpStyle.Render(":edit   "),
+			KeyStyle.Render("D"), HelpStyle.Render(":delete   "),
+			KeyStyle.Render("ENTER"), HelpStyle.Render(":connect   "),
+			KeyStyle.Render("Q"), HelpStyle.Render(":quit"),
+		))
+}
+
+func providerBadge(provider string) string {
+	color := SecondaryTextColor
+	switch provider {
+	case "PostgreSQL", "postgres":
+		color = lipgloss.Color("#7DCFFF")
+	case "MySQL", "mysql":
+		color = lipgloss.Color("#E0AF68")
+	case "SQLite", "sqlite3":
+		color = lipgloss.Color("#9ECE6A")
+	case "MSSQL", "sqlserver":
+		color = lipgloss.Color("#BB9AF7")
+	}
+	return lipgloss.NewStyle().Foreground(color).Bold(true).Render("[" + provider + "]")
 }

@@ -11,15 +11,15 @@ var (
 			BorderForeground(lipgloss.Color("#666A7E"))
 
 	TitleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FFFFFF")).
+			Foreground(lipgloss.Color("#7AA2F7")).
 			Bold(true)
 
 	HighlightStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FFFF00"))
+			Foreground(lipgloss.Color("#7AA2F7"))
 
 	SelectedStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("#0000FF")).
-			Foreground(lipgloss.Color("#FFFFFF"))
+			Background(lipgloss.Color("#283457")).
+			Foreground(lipgloss.Color("#C0CAF5"))
 
 	StatusStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#00FF00"))
@@ -27,15 +27,17 @@ var (
 	ErrorStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FF0000"))
 
+	ErrorColor = lipgloss.Color("#FF0000")
+
 	InputLabelStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#FFFFFF")).
-				Width(10).
-				Align(lipgloss.Right)
+			Foreground(lipgloss.Color("#00FF00")).
+			Width(10).
+			Align(lipgloss.Right)
 
 	InputFieldStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#000000")).
-				Background(lipgloss.Color("#FFFFFF")).
-				Padding(0, 1)
+			Foreground(lipgloss.Color("#000000")).
+			Background(lipgloss.Color("#FFFFFF")).
+			Padding(0, 1)
 
 	ProfileActiveStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#00FF00")).
@@ -51,10 +53,20 @@ var (
 
 	ProviderSelectedStyle = lipgloss.NewStyle().
 				Padding(0, 1).
-				Background(lipgloss.Color("#0000FF")).
-				Foreground(lipgloss.Color("#FFFFFF")).
+				Background(lipgloss.Color("#283457")).
+				Foreground(lipgloss.Color("#C0CAF5")).
 				Bold(true)
 
 	HelpStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#666666"))
+
+	KeyStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#7AA2F7"))
+
+	SidebarTitleColor = lipgloss.Color("#666A7E")
+
+	PrimaryTextColor   = lipgloss.Color("#C0CAF5")
+	SecondaryTextColor = lipgloss.Color("#7AA2F7")
+	TertiaryTextColor  = lipgloss.Color("#9ECE6A")
+	InverseTextColor   = lipgloss.Color("#888888")
 )

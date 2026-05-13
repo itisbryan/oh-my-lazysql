@@ -284,6 +284,20 @@ func BuildConnectionURL(conn *models.Connection) string {
 	}
 
 	// MySQL and PostgreSQL
+	dbName := conn.DBName
+	if urlPrefix == "postgres" && dbName == "" {
+		dbName = "postgres"
+	}
+
+	params := conn.URLParams
+	if urlPrefix == "postgres" && params == "" {
+		params = "?sslmode=disable"
+	} else if urlPrefix == "postgres" && len(params) > 0 && params[0] == '?' {
+		if !strings.Contains(params, "sslmode") {
+			params += "&sslmode=disable"
+		}
+	}
+
 	return fmt.Sprintf(
 		"%s://%s:%s@%s:%s/%s%s",
 		urlPrefix,
@@ -291,8 +305,8 @@ func BuildConnectionURL(conn *models.Connection) string {
 		pass,
 		host,
 		port,
-		conn.DBName,
-		conn.URLParams,
+		dbName,
+		params,
 	)
 }
 

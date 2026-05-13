@@ -36,11 +36,14 @@ func (m *RootModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Screen {
 		case ScreenConnectionList:
 			m.connectionList = NewConnectionListModel()
+			m.connectionList, _ = m.connectionList.Update(tea.WindowSizeMsg{Width: m.width, Height: m.height})
 		case ScreenConnectionForm:
 			m.connectionForm = NewConnectionFormModel(msg.Data)
+			m.connectionForm, _ = m.connectionForm.Update(tea.WindowSizeMsg{Width: m.width, Height: m.height})
 			return m, m.connectionForm.Init()
 		case ScreenHome:
 			m.home = NewHomeModel(msg.Data)
+			m.home, _ = m.home.Update(tea.WindowSizeMsg{Width: m.width, Height: m.height})
 			return m, m.home.Init()
 		}
 	}
