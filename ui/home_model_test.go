@@ -100,6 +100,54 @@ func TestResultsNextPageKeyLoadsRecordsWithPageOffset(t *testing.T) {
 	}
 }
 
+func TestCtrlPSwitchesBackToConnectionList(t *testing.T) {
+	model := NewHomeModel(models.Connection{Name: "app"})
+
+	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
+	if cmd == nil {
+		t.Fatal("expected ctrl+p to switch to connection list")
+	}
+	msg := cmd()
+	screenMsg, ok := msg.(ScreenChangeMsg)
+	if !ok {
+		t.Fatalf("expected ScreenChangeMsg, got %#v", msg)
+	}
+	if screenMsg.Screen != ScreenConnectionList {
+		t.Fatalf("expected connection list screen, got %v", screenMsg.Screen)
+	}
+}
+
+func TestResultsPreviousPageUsesLeftChevronKey(t *testing.T) {
+	driver := &fakeHomeDriver{
+		columns:   [][]string{{"column_name", "data_type"}, {"id", "integer"}},
+		records:   [][]string{{"id"}, {"1"}},
+		totalRows: 250,
+	}
+	results := NewResultsModel()
+	results.totalRows = 250
+	results.page = 1
+	model := &HomeModel{
+		driver:          driver,
+		results:         results,
+		focus:           "results",
+		currentDatabase: "app",
+		currentSchema:   "public",
+		currentTable:    "users",
+	}
+
+	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'<'}})
+	if cmd == nil {
+		t.Fatal("expected < to trigger previous page reload")
+	}
+	msg := cmd()
+	if loaded, ok := msg.(recordsLoadedMsg); !ok || loaded.err != nil {
+		t.Fatalf("expected recordsLoadedMsg without error, got %#v", msg)
+	}
+	if driver.offset != 0 {
+		t.Fatalf("expected previous page to load offset 0, got %d", driver.offset)
+	}
+}
+
 func TestResultsCannotAdvancePastLastPage(t *testing.T) {
 	results := NewResultsModel()
 	results.totalRows = 250
@@ -470,6 +518,60 @@ func TestTabAcceptsAutocompleteWhenEditorFocused(t *testing.T) {
 	}
 }
 
+func TestEnterOnForeignKeyCellNavigatesToReferencedTable(t *testing.T) {
+	driver := &fakeHomeDriver{
+		records: [][]string{{"id", "name"}, {"42", "Ada"}},
+	}
+	results := NewResultsModel()
+	results.columns = []GridColumn{
+		{Title: "id", Type: "integer"},
+		{Title: "user_id", Type: "integer", IsFK: true, ForeignKey: &ForeignKeyRef{Schema: "public", Table: "users", Column: "id"}},
+	}
+	results.rows = [][]string{{"1", "42"}}
+	results.col = 1
+	model := &HomeModel{
+		driver:          driver,
+		results:         results,
+		focus:           "results",
+		currentDatabase: "app",
+		currentSchema:   "public",
+		currentTable:    "orders",
+	}
+
+	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("expected foreign key enter to load referenced table")
+	}
+	msg := cmd()
+	if loaded, ok := msg.(recordsLoadedMsg); !ok || loaded.err != nil {
+		t.Fatalf("expected recordsLoadedMsg without error, got %#v", msg)
+	}
+	if model.currentTable != "users" {
+		t.Fatalf("expected current table users, got %q", model.currentTable)
+	}
+	if model.results.whereFilter != "id = '42'" || driver.where != "WHERE id = '42'" {
+		t.Fatalf("expected FK where filter, model=%q driver=%q", model.results.whereFilter, driver.where)
+	}
+	if len(model.navStack) != 1 {
+		t.Fatalf("expected navStack length 1 after FK navigation, got %d", len(model.navStack))
+	}
+
+	_, cmd = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'['}})
+	if cmd == nil {
+		t.Fatal("expected [ to navigate back")
+	}
+	msg = cmd()
+	if loaded, ok := msg.(recordsLoadedMsg); !ok || loaded.err != nil {
+		t.Fatalf("expected recordsLoadedMsg when going back, got %#v", msg)
+	}
+	if model.currentTable != "orders" {
+		t.Fatalf("expected back to orders table, got %q", model.currentTable)
+	}
+	if len(model.navStack) != 0 {
+		t.Fatalf("expected navStack empty after navigating back, got %d", len(model.navStack))
+	}
+}
+
 func TestBuildPendingChangesIncludesDeletesAndTypedValues(t *testing.T) {
 	results := NewResultsModel()
 	results.columns = []GridColumn{{Title: "id", Type: "integer", IsPK: true}, {Title: "active", Type: "boolean"}, {Title: "score", Type: "numeric"}, {Title: "deleted_at", Type: "timestamp"}}
@@ -665,7 +767,12 @@ func (d *fakeHomeDriver) GetFunctionDefinition(string, string) (string, error)  
 func (d *fakeHomeDriver) GetProcedureDefinition(string, string) (string, error)     { return "", nil }
 func (d *fakeHomeDriver) GetViewDefinition(string, string) (string, error)          { return "", nil }
 func (d *fakeHomeDriver) FormatArg(any, models.CellValueType) any                   { return nil }
-func (d *fakeHomeDriver) FormatArgForQueryString(any) string                        { return "" }
+func (d *fakeHomeDriver) FormatArgForQueryString(arg any) string {
+	if value, ok := arg.(string); ok {
+		return "'" + value + "'"
+	}
+	return "''"
+}
 func (d *fakeHomeDriver) FormatReference(reference string) string                   { return reference }
 func (d *fakeHomeDriver) FormatPlaceholder(int) string                              { return "" }
 func (d *fakeHomeDriver) DMLChangeToQueryString(models.DBDMLChange) (string, error) { return "", nil }

@@ -30,17 +30,34 @@ type HomeModel struct {
 	currentDatabase string
 	currentSchema   string
 	currentTable    string
+
+	navStack       []navigationEntry
+	loadingRecords bool
+}
+
+type navigationEntry struct {
+	database  string
+	schema    string
+	table     string
+	where     string
+	row       int
+	col       int
+	totalRows int
+	page      int
 }
 
 type recordsLoadedMsg struct {
-	columns   []string
-	colTypes  map[string]string
-	pkCols    map[string]bool
-	fkCols    map[string]bool
-	rows      [][]string
-	totalRows int
-	query     string
-	err       error
+	columns      []string
+	colTypes     map[string]string
+	nullableCols map[string]bool
+	enumValues   map[string][]string
+	fkRefs       map[string]ForeignKeyRef
+	pkCols       map[string]bool
+	fkCols       map[string]bool
+	rows         [][]string
+	totalRows    int
+	query        string
+	err          error
 }
 
 type metadataLoadedMsg struct {
@@ -119,6 +136,16 @@ func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 	case tea.KeyMsg:
+		if msg.String() == "ctrl+p" {
+			return m, func() tea.Msg {
+				return ScreenChangeMsg{Screen: ScreenConnectionList, Data: nil}
+			}
+		}
+		if msg.String() == "[" {
+			if cmd := m.navigateBack(); cmd != nil {
+				return m, cmd
+			}
+		}
 		if m.focus == "results" && m.results.filterEditing {
 			m.propagateCompletionContext()
 			_, resultsCmd := m.results.Update(msg)
@@ -182,27 +209,23 @@ func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.focus == "tree" {
 				nodeType, database, schema, name := m.tree.SelectedNode()
 				if nodeType == NodeTypeTable {
-					m.currentDatabase = database
-					m.currentSchema = schema
-					m.currentTable = name
-					m.results.page = 0
-					m.results.row = 0
-					m.results.col = 0
-					m.results.colOffset = 0
-					m.results.sortCol = -1
-					m.results.sortDir = ""
-					m.results.filterEditing = false
-					m.results.filterInput = ""
-					m.results.whereFilter = ""
+					m.openTable(database, schema, name, "")
 					m.setFocus("results")
+					m.loadingRecords = true
+					m.results.loading = true
 					return m, m.loadTableRecords(database, schema, name)
+				}
+			}
+			if m.focus == "results" {
+				if cmd := m.navigateForeignKeyCell(); cmd != nil {
+					return m, cmd
 				}
 			}
 		case "ctrl+n", ">":
 			if m.focus == "results" {
 				return m, m.loadResultsPage(m.results.page + 1)
 			}
-		case "ctrl+p", "<":
+		case "<":
 			if m.focus == "results" {
 				return m, m.loadResultsPage(m.results.page - 1)
 			}
@@ -210,10 +233,12 @@ func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if msg, ok := msg.(recordsLoadedMsg); ok {
+		m.loadingRecords = false
+		m.results.loading = false
 		if msg.err != nil {
 			m.results.SetStatus("Error: " + msg.err.Error())
 		} else {
-			m.results.SetData(msg.columns, msg.colTypes, msg.pkCols, msg.fkCols, msg.rows)
+			m.results.SetData(msg.columns, msg.colTypes, msg.nullableCols, msg.enumValues, msg.fkRefs, msg.pkCols, msg.fkCols, msg.rows)
 			m.results.totalRows = msg.totalRows
 			m.results.SetStatus(fmt.Sprintf("%d rows | %s", msg.totalRows, msg.query))
 			m.propagateCompletionContext()
@@ -231,7 +256,7 @@ func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(msg.results) > 0 {
 			columns := msg.results[0]
 			rows := msg.results[1:]
-			m.results.SetData(columns, nil, nil, nil, rows)
+			m.results.SetData(columns, nil, nil, nil, nil, nil, nil, rows)
 			m.results.SetStatus(fmt.Sprintf("Got %d rows", msg.rowCount))
 		}
 		return m, nil
@@ -262,12 +287,16 @@ func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if _, ok := msg.(whereFilterAppliedMsg); ok {
 		m.results.page = 0
 		m.results.row = 0
+		m.loadingRecords = true
+		m.results.loading = true
 		return m, m.loadCurrentTableRecords()
 	}
 
 	if _, ok := msg.(sortAppliedMsg); ok {
 		m.results.page = 0
 		m.results.row = 0
+		m.loadingRecords = true
+		m.results.loading = true
 		return m, m.loadCurrentTableRecords()
 	}
 
@@ -306,7 +335,114 @@ func (m *HomeModel) loadResultsPage(page int) tea.Cmd {
 	}
 	m.results.page = page
 	m.results.row = 0
+	m.loadingRecords = true
+	m.results.loading = true
 	return m.loadCurrentTableRecords()
+}
+
+func (m *HomeModel) openTable(database, schema, table, where string) {
+	m.currentDatabase = database
+	m.currentSchema = schema
+	m.currentTable = table
+	m.results.page = 0
+	m.results.row = 0
+	m.results.col = 0
+	m.results.colOffset = 0
+	m.results.sortCol = -1
+	m.results.sortDir = ""
+	m.results.filterEditing = false
+	m.results.filterInput = where
+	m.results.whereFilter = where
+}
+
+func (m *HomeModel) navigateBack() tea.Cmd {
+	if len(m.navStack) == 0 {
+		return nil
+	}
+
+	entry := m.navStack[len(m.navStack)-1]
+	m.navStack = m.navStack[:len(m.navStack)-1]
+
+	m.currentDatabase = entry.database
+	m.currentSchema = entry.schema
+	m.currentTable = entry.table
+	m.results.whereFilter = entry.where
+	m.results.filterInput = entry.where
+	m.results.filterEditing = false
+	m.results.page = 0
+	m.results.row = 0
+	m.results.col = 0
+	m.results.colOffset = 0
+	m.results.sortCol = -1
+	m.results.sortDir = ""
+
+	if len(m.navStack) == 0 {
+		m.results.SetStatus(fmt.Sprintf("Returned to %s.%s", entry.schema, entry.table))
+	} else {
+		m.results.SetStatus(fmt.Sprintf("Back to %s.%s (%d more)", entry.schema, entry.table, len(m.navStack)))
+	}
+
+	m.loadingRecords = true
+	m.results.loading = true
+	return m.loadTableRecords(entry.database, entry.schema, entry.table)
+}
+
+func (m *HomeModel) pushNavigation() {
+	entry := navigationEntry{
+		database:  m.currentDatabase,
+		schema:    m.currentSchema,
+		table:     m.currentTable,
+		where:     m.results.whereFilter,
+		row:       m.results.row,
+		col:       m.results.col,
+		totalRows: m.results.totalRows,
+		page:      m.results.page,
+	}
+	m.navStack = append(m.navStack, entry)
+}
+
+func (m *HomeModel) navigateForeignKeyCell() tea.Cmd {
+	if m.results == nil || m.results.editingCell || m.results.activeTab != 0 {
+		return nil
+	}
+	if m.results.row < 0 || m.results.row >= len(m.results.rows) || m.results.col < 0 || m.results.col >= len(m.results.columns) {
+		return nil
+	}
+	col := m.results.columns[m.results.col]
+	if col.ForeignKey == nil || col.ForeignKey.Table == "" || col.ForeignKey.Column == "" {
+		return nil
+	}
+	value := ""
+	if m.results.col < len(m.results.rows[m.results.row]) {
+		value = m.results.rows[m.results.row][m.results.col]
+	}
+	where := foreignKeyWhereClause(col.ForeignKey.Column, value, m.driver)
+	schema := col.ForeignKey.Schema
+	if schema == "" {
+		schema = m.currentSchema
+	}
+
+	m.pushNavigation()
+	m.openTable(m.currentDatabase, schema, col.ForeignKey.Table, where)
+	m.results.SetStatus(fmt.Sprintf("Following %s → %s.%s (%d back)", col.Title, col.ForeignKey.Table, col.ForeignKey.Column, len(m.navStack)))
+	m.loadingRecords = true
+	m.results.loading = true
+	return m.loadTableRecords(m.currentDatabase, schema, col.ForeignKey.Table)
+}
+
+func foreignKeyWhereClause(column, value string, driver drivers.Driver) string {
+	ref := column
+	if driver != nil {
+		ref = driver.FormatReference(column)
+	}
+	if strings.EqualFold(strings.TrimSpace(value), "NULL") || strings.EqualFold(strings.TrimSpace(value), "NULL&") {
+		return fmt.Sprintf("%s IS NULL", ref)
+	}
+	formatted := value
+	if driver != nil {
+		formatted = driver.FormatArgForQueryString(value)
+	}
+	return fmt.Sprintf("%s = %s", ref, formatted)
 }
 
 func (m *HomeModel) savePendingChanges() tea.Cmd {
@@ -402,8 +538,8 @@ func (m *HomeModel) buildPendingChanges() []models.DBDMLChange {
 
 func dmlCellValue(value, columnType string) (any, models.CellValueType) {
 	switch value {
-	case "NULL":
-		return value, models.Null
+	case "NULL", "NULL&":
+		return "NULL", models.Null
 	case "DEFAULT":
 		return value, models.Default
 	case "":
@@ -412,7 +548,7 @@ func dmlCellValue(value, columnType string) (any, models.CellValueType) {
 
 	lowerType := strings.ToLower(columnType)
 	lowerValue := strings.ToLower(value)
-	if strings.Contains(lowerType, "bool") {
+	if strings.Contains(lowerType, "bool") || strings.Contains(lowerType, "tinyint(1)") || lowerType == "bit" {
 		switch lowerValue {
 		case "true", "t", "1":
 			return true, models.String
@@ -519,31 +655,40 @@ func (m *HomeModel) loadTableRecords(database, schema, table string) tea.Cmd {
 			return recordsLoadedMsg{err: err}
 		}
 		if len(records) == 0 {
-			return recordsLoadedMsg{columns: []string{}, colTypes: map[string]string{}, pkCols: map[string]bool{}, fkCols: map[string]bool{}, rows: [][]string{}, totalRows: totalRows, query: query}
+			return recordsLoadedMsg{columns: []string{}, colTypes: map[string]string{}, nullableCols: map[string]bool{}, enumValues: map[string][]string{}, fkRefs: map[string]ForeignKeyRef{}, pkCols: map[string]bool{}, fkCols: map[string]bool{}, rows: [][]string{}, totalRows: totalRows, query: query}
 		}
 
 		colTypes := map[string]string{}
+		nullableCols := map[string]bool{}
+		enumValues := map[string][]string{}
 		colData, colErr := m.driver.GetTableColumns(database, tableName)
 		if colErr == nil && len(colData) > 0 {
 			headerRow := colData[0]
-			typeIdx := -1
-			for i, h := range headerRow {
-				if strings.EqualFold(h, "data_type") || strings.EqualFold(h, "type") {
-					typeIdx = i
-					break
-				}
-			}
-			nameIdx := -1
-			for i, h := range headerRow {
-				if strings.EqualFold(h, "column_name") || strings.EqualFold(h, "name") {
-					nameIdx = i
-					break
-				}
-			}
-			if nameIdx >= 0 && typeIdx >= 0 {
+			typeIdx := columnIndex(headerRow, "data_type", "type")
+			nameIdx := columnIndex(headerRow, "column_name", "name", "field")
+			nullableIdx := columnIndex(headerRow, "is_nullable", "null", "nullable")
+			notNullIdx := columnIndex(headerRow, "notnull")
+			enumIdx := columnIndex(headerRow, "enum_values")
+			if nameIdx >= 0 {
 				for _, row := range colData[1:] {
-					if nameIdx < len(row) && typeIdx < len(row) {
-						colTypes[row[nameIdx]] = row[typeIdx]
+					if nameIdx >= len(row) {
+						continue
+					}
+					name := row[nameIdx]
+					typeName := ""
+					if typeIdx >= 0 && typeIdx < len(row) {
+						typeName = row[typeIdx]
+						colTypes[name] = typeName
+					}
+					if enumIdx >= 0 && enumIdx < len(row) {
+						enumValues[name] = parseEnumValues(row[enumIdx])
+					} else if values := parseEnumType(typeName); len(values) > 0 {
+						enumValues[name] = values
+					}
+					if nullableIdx >= 0 && nullableIdx < len(row) {
+						nullableCols[name] = isNullableValue(row[nullableIdx])
+					} else if notNullIdx >= 0 && notNullIdx < len(row) {
+						nullableCols[name] = !isTruthyValue(row[notNullIdx])
 					}
 				}
 			}
@@ -558,35 +703,122 @@ func (m *HomeModel) loadTableRecords(database, schema, table string) tea.Cmd {
 		}
 
 		fkCols := map[string]bool{}
+		fkRefs := map[string]ForeignKeyRef{}
 		fkData, fkErr := m.driver.GetForeignKeys(database, tableName)
 		if fkErr == nil && len(fkData) > 0 {
-			fkHeader := fkData[0]
-			colNameIdx := -1
-			for i, h := range fkHeader {
-				if strings.EqualFold(h, "column_name") {
-					colNameIdx = i
-					break
-				}
-			}
-			if colNameIdx >= 0 {
-				for _, row := range fkData[1:] {
-					if colNameIdx < len(row) {
-						fkCols[row[colNameIdx]] = true
-					}
-				}
+			fkRefs = parseForeignKeyRefs(fkData)
+			for colName := range fkRefs {
+				fkCols[colName] = true
 			}
 		}
 
 		return recordsLoadedMsg{
-			columns:   records[0],
-			colTypes:  colTypes,
-			pkCols:    pkCols,
-			fkCols:    fkCols,
-			rows:      records[1:],
-			totalRows: totalRows,
-			query:     query,
+			columns:      records[0],
+			colTypes:     colTypes,
+			nullableCols: nullableCols,
+			enumValues:   enumValues,
+			fkRefs:       fkRefs,
+			pkCols:       pkCols,
+			fkCols:       fkCols,
+			rows:         records[1:],
+			totalRows:    totalRows,
+			query:        query,
 		}
 	}
+}
+
+func parseForeignKeyRefs(data [][]string) map[string]ForeignKeyRef {
+	refs := map[string]ForeignKeyRef{}
+	if len(data) == 0 {
+		return refs
+	}
+	header := data[0]
+	columnIdx := columnIndex(header, "column_name", "COLUMN_NAME", "from")
+	tableIdx := columnIndex(header, "foreign_table_name", "referenced_table", "REFERENCED_TABLE_NAME", "table")
+	targetColumnIdx := columnIndex(header, "foreign_column_name", "referenced_column", "REFERENCED_COLUMN_NAME", "to")
+	schemaIdx := columnIndex(header, "foreign_table_schema", "referenced_schema", "schema")
+	if columnIdx < 0 || tableIdx < 0 || targetColumnIdx < 0 {
+		return refs
+	}
+	for _, row := range data[1:] {
+		if columnIdx >= len(row) || tableIdx >= len(row) || targetColumnIdx >= len(row) {
+			continue
+		}
+		ref := ForeignKeyRef{Table: row[tableIdx], Column: row[targetColumnIdx]}
+		if schemaIdx >= 0 && schemaIdx < len(row) {
+			ref.Schema = row[schemaIdx]
+		}
+		refs[row[columnIdx]] = ref
+	}
+	return refs
+}
+
+func parseEnumValues(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			values = append(values, part)
+		}
+	}
+	return values
+}
+
+func parseEnumType(typeName string) []string {
+	trimmed := strings.TrimSpace(typeName)
+	lower := strings.ToLower(trimmed)
+	if !strings.HasPrefix(lower, "enum(") || !strings.HasSuffix(trimmed, ")") {
+		return nil
+	}
+
+	body := trimmed[len("enum(") : len(trimmed)-1]
+	values := []string{}
+	var current strings.Builder
+	inQuote := false
+	escaped := false
+	for _, r := range body {
+		switch {
+		case escaped:
+			current.WriteRune(r)
+			escaped = false
+		case r == '\\':
+			escaped = true
+		case r == '\'':
+			inQuote = !inQuote
+		case r == ',' && !inQuote:
+			values = append(values, current.String())
+			current.Reset()
+		default:
+			current.WriteRune(r)
+		}
+	}
+	values = append(values, current.String())
+	return values
+}
+
+func columnIndex(headers []string, names ...string) int {
+	for i, header := range headers {
+		for _, name := range names {
+			if strings.EqualFold(header, name) {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+func isNullableValue(value string) bool {
+	lower := strings.ToLower(strings.TrimSpace(value))
+	return lower == "yes" || lower == "true" || lower == "1" || lower == "y"
+}
+
+func isTruthyValue(value string) bool {
+	lower := strings.ToLower(strings.TrimSpace(value))
+	return lower == "yes" || lower == "true" || lower == "1" || lower == "y"
 }
 
 func normalizeWhereFilter(filter string) string {
@@ -613,6 +845,9 @@ func (m *HomeModel) defaultSort(database, tableName string) string {
 	columns, err := m.driver.GetTableColumns(database, tableName)
 	if err != nil {
 		logger.Error("defaultSort: failed to load columns", map[string]any{"table": tableName, "error": err})
+		return ""
+	}
+	if len(columns) < 2 {
 		return ""
 	}
 
@@ -739,6 +974,8 @@ func (m *HomeModel) View() string {
 		HelpStyle.Render(" sidebar "),
 		KeyStyle.Render("Ctrl+E"),
 		HelpStyle.Render(" toggle sql "),
+		KeyStyle.Render("Ctrl+P"),
+		HelpStyle.Render(" connections "),
 		KeyStyle.Render("q"),
 		HelpStyle.Render(" quit"),
 	)

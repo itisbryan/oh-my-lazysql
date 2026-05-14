@@ -178,7 +178,7 @@ func TestResultsFilterShowsSQLAutocompleteDropdown(t *testing.T) {
 	}
 }
 
-func TestResultsInlineEditCommitsPendingChange(t *testing.T) {
+func TestResultsInlineEditStartsWithExistingValueAndAppends(t *testing.T) {
 	model := NewResultsModel()
 	model.width = 100
 	model.height = 24
@@ -187,19 +187,139 @@ func TestResultsInlineEditCommitsPendingChange(t *testing.T) {
 	model.col = 1
 
 	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if model.editInput != "old@example.com" {
+		t.Fatalf("expected edit input to keep existing value, got %q", model.editInput)
+	}
 	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
 	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
 	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'w'}})
 	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 
-	if model.rows[0][1] != "new" {
-		t.Fatalf("expected cell to be updated locally, got %q", model.rows[0][1])
+	if model.rows[0][1] != "old@example.comnew" {
+		t.Fatalf("expected typed text to append to existing value, got %q", model.rows[0][1])
 	}
 	if model.pendingChangeCount() != 1 {
 		t.Fatalf("expected 1 pending change, got %d", model.pendingChangeCount())
 	}
 	if model.editingCell {
 		t.Fatal("expected editing to stop after commit")
+	}
+}
+
+func TestResultsInlineEditCanClearWithCtrlU(t *testing.T) {
+	model := NewResultsModel()
+	model.columns = []GridColumn{{Title: "id"}, {Title: "email"}}
+	model.rows = [][]string{{"1", "old@example.com"}}
+	model.col = 1
+
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyCtrlU})
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'w'}})
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	if model.rows[0][1] != "new" {
+		t.Fatalf("expected ctrl+u to clear before typing replacement, got %q", model.rows[0][1])
+	}
+}
+
+func TestResultsInlineEditCanSelectAllThenReplaceOrClear(t *testing.T) {
+	model := NewResultsModel()
+	model.columns = []GridColumn{{Title: "id"}, {Title: "email"}}
+	model.rows = [][]string{{"1", "old@example.com"}}
+	model.col = 1
+
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyCtrlA})
+	if !model.editSelectAll {
+		t.Fatal("expected ctrl+a to select the whole edit value")
+	}
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if model.rows[0][1] != "n" {
+		t.Fatalf("expected typing after ctrl+a to replace value, got %q", model.rows[0][1])
+	}
+
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyCtrlA})
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if model.rows[0][1] != "" {
+		t.Fatalf("expected backspace after ctrl+a to clear value, got %q", model.rows[0][1])
+	}
+}
+
+func TestResultsBoolCellEnterTogglesTrueFalse(t *testing.T) {
+	model := NewResultsModel()
+	model.columns = []GridColumn{{Title: "id", Type: "integer"}, {Title: "active", Type: "boolean"}}
+	model.rows = [][]string{{"1", "true"}}
+	model.col = 1
+
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if model.editingCell {
+		t.Fatal("expected bool enter to toggle without entering text edit mode")
+	}
+	if model.rows[0][1] != "false" {
+		t.Fatalf("expected true to toggle to false, got %q", model.rows[0][1])
+	}
+
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if model.rows[0][1] != "true" {
+		t.Fatalf("expected non-nullable false to toggle to true, got %q", model.rows[0][1])
+	}
+}
+
+func TestResultsNullableBoolCellCyclesThroughNull(t *testing.T) {
+	model := NewResultsModel()
+	model.columns = []GridColumn{{Title: "id", Type: "integer"}, {Title: "active", Type: "boolean", Nullable: true}}
+	model.rows = [][]string{{"1", "false"}}
+	model.col = 1
+
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if model.rows[0][1] != "NULL" {
+		t.Fatalf("expected nullable false to toggle to NULL, got %q", model.rows[0][1])
+	}
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if model.rows[0][1] != "true" {
+		t.Fatalf("expected NULL to toggle to true, got %q", model.rows[0][1])
+	}
+}
+
+func TestResultsEnumCellEnterCyclesValues(t *testing.T) {
+	model := NewResultsModel()
+	model.columns = []GridColumn{{Title: "id", Type: "integer"}, {Title: "status", Type: "USER-DEFINED", EnumValues: []string{"draft", "published", "archived"}}}
+	model.rows = [][]string{{"1", "draft"}}
+	model.col = 1
+
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if model.editingCell {
+		t.Fatal("expected enum enter to cycle without entering text edit mode")
+	}
+	if model.rows[0][1] != "published" {
+		t.Fatalf("expected draft to cycle to published, got %q", model.rows[0][1])
+	}
+
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if model.rows[0][1] != "draft" {
+		t.Fatalf("expected enum to wrap back to draft, got %q", model.rows[0][1])
+	}
+}
+
+func TestResultsNullableEnumCellCyclesThroughNull(t *testing.T) {
+	model := NewResultsModel()
+	model.columns = []GridColumn{{Title: "id", Type: "integer"}, {Title: "status", Type: "USER-DEFINED", Nullable: true, EnumValues: []string{"draft", "published"}}}
+	model.rows = [][]string{{"1", "published"}}
+	model.col = 1
+
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if model.rows[0][1] != "NULL" {
+		t.Fatalf("expected nullable final enum value to cycle to NULL, got %q", model.rows[0][1])
+	}
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if model.rows[0][1] != "draft" {
+		t.Fatalf("expected NULL to cycle to first enum value, got %q", model.rows[0][1])
 	}
 }
 

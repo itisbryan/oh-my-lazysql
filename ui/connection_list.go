@@ -134,7 +134,16 @@ func (m *ConnectionListModel) renderWelcomeTitle() string {
 }
 
 func (m *ConnectionListModel) renderBootMenu() string {
-	divider := lipgloss.NewStyle().Foreground(lipgloss.Color("#3B4261")).Width(54).Render("──────────────────────────────────────────────────")
+	innerWidth := 66
+	if m.width > 0 {
+		innerWidth = min(74, max(52, m.width-18))
+	}
+
+	divider := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#3B4261")).
+		Width(innerWidth).
+		Render(strings.Repeat("─", innerWidth))
+
 	menuRows := []string{}
 	for i, conn := range m.connections {
 		name := conn.Name
@@ -143,10 +152,13 @@ func (m *ConnectionListModel) renderBootMenu() string {
 		}
 
 		cursor := " "
-		style := lipgloss.NewStyle().Foreground(PrimaryTextColor)
+		style := lipgloss.NewStyle().
+			Foreground(PrimaryTextColor).
+			Padding(0, 1).
+			Width(innerWidth)
 		if i == m.cursor {
 			cursor = ">"
-			style = lipgloss.NewStyle().
+			style = style.
 				Foreground(SecondaryTextColor).
 				Background(lipgloss.Color("#283457")).
 				Bold(true)
@@ -157,7 +169,7 @@ func (m *ConnectionListModel) renderBootMenu() string {
 		if conn.DBName != "" {
 			database = lipgloss.NewStyle().Foreground(InverseTextColor).Render(" // " + conn.DBName)
 		}
-		row := fmt.Sprintf("%s %-22s %s%s", cursor, name, provider, database)
+		row := fmt.Sprintf("%s %-24s %s%s", cursor, name, provider, database)
 		if conn.ReadOnly {
 			row += " " + lipgloss.NewStyle().Foreground(TertiaryTextColor).Bold(true).Render("READ")
 		}
@@ -168,16 +180,17 @@ func (m *ConnectionListModel) renderBootMenu() string {
 	}
 
 	if len(menuRows) == 0 {
+		emptyStyle := lipgloss.NewStyle().Padding(0, 1).Width(innerWidth)
 		menuRows = append(menuRows,
-			lipgloss.NewStyle().Foreground(lipgloss.Color("#F7768E")).Bold(true).Render("NO CONNECTION PROFILES FOUND"),
-			lipgloss.NewStyle().Foreground(InverseTextColor).Render("Press N to initialize a new profile"),
+			emptyStyle.Render(lipgloss.NewStyle().Foreground(lipgloss.Color("#F7768E")).Bold(true).Render("NO CONNECTION PROFILES FOUND")),
+			emptyStyle.Render(lipgloss.NewStyle().Foreground(InverseTextColor).Render("Press N to initialize a new profile")),
 		)
 	}
 
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#7AA2F7")).
-		Padding(0, 2).
+		Padding(1, 3).
 		Render(lipgloss.JoinVertical(lipgloss.Left,
 			lipgloss.NewStyle().Foreground(TertiaryTextColor).Bold(true).Render("BOOT MENU"),
 			lipgloss.NewStyle().Foreground(InverseTextColor).Render("Select profile and press ENTER"),

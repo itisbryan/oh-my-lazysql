@@ -1,427 +1,395 @@
 <a name="readme-top"></a>
 
-[![Contributors][contributors-shield]][contributors-url]
-[![Forks][forks-shield]][forks-url]
-[![Stargazers][stars-shield]][stars-url]
-[![Issues][issues-shield]][issues-url]
-[![MIT License][license-shield]][license-url]
-[![LinkedIn][linkedin-shield]][linkedin-url]
+# OhMyLazySQL — relationship-aware terminal database browser
 
-<!-- PROJECT LOGO -->
-<div align="center">
-  <!-- <a href="https://github.com/jorgerojas26/lazysql"> -->
-  <!--   <img src="images/logo.png" alt="Logo" width="80" height="80"> -->
-  <!-- </a> -->
+A keyboard-first TUI database client written in Go. OhMyLazySQL builds on the original LazySQL and focuses on a friendlier connection flow, smoother table browsing, inline editing, and relationship-aware navigation.
 
-  <h3 align="center">LAZYSQL</h3>
+> This repository is a fork of [jorgerojas26/lazysql](https://github.com/jorgerojas26/lazysql). The original project deserves credit for the core idea, database driver foundation, TUI structure, configuration format, and much of the baseline functionality. This fork documents the behavior in this repository, which now differs from upstream in several UI and navigation areas.
 
-  <p align="center">
-        A cross-platform TUI database management tool written in Go.
-  </p>
-</div>
+![Connection selection screenshot][product-screenshot1]
+![OhMyLazySQL screenshot][product-screenshot2]
 
-<!-- TABLE OF CONTENTS -->
-<details>
-  <summary>Table of Contents</summary>
-  <ol>
-    <li>
-      <a href="#about-the-project">About The Project</a>
-      <ul>
-        <li><a href="#built-with">Built With</a></li>
-      </ul>
-    </li>
-    <li><a href="#features">Features</a></li>
-    <li>
-      <a href="#getting-started">Getting Started</a>
-      <ul>
-        <li><a href="#installation">Installation</a></li>
-      </ul>
-    </li>
-    <li><a href="#usage">Usage</a></li>
-    <li><a href="#commands">Commands</a></li>
-    <li><a href="#environment-variables">Environment variables</a></li>
-    <li><a href="#keybindings">Keybindings</a></li>
-    <li><a href="#roadmap">Roadmap</a></li>
-    <li><a href="#contributing">Contributing</a></li>
-    <li><a href="#license">License</a></li>
-    <li><a href="#contact">Contact</a></li>
-    <li><a href="#acknowledgments">Acknowledgments</a></li>
-  </ol>
-</details>
+## Contents
 
-<!-- ABOUT THE PROJECT -->
+- [What this fork adds](#what-this-fork-adds)
+- [Supported databases](#supported-databases)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [Connections](#connections)
+- [Keyboard workflow](#keyboard-workflow)
+- [Keybindings](#keybindings)
+- [External editor](#external-editor)
+- [Clipboard support](#clipboard-support)
+- [Development](#development)
+- [Attribution](#attribution)
+- [License](#license)
 
-## About The Project
+## What this fork adds
 
-![Product Name Screen Shot][product-screenshot1]
-![Product Name Screen Shot][product-screenshot2]
+OhMyLazySQL keeps the original LazySQL terminal workflow and adds a more polished day-to-day database browsing experience:
 
-This project is heavily inspired by [Lazygit](https://github.com/jesseduffield/lazygit), which I think is the best TUI client for Git.
+- Friendly guided connection form with provider defaults and URL-paste mode
+- Saved connection list with wider spacing and clearer selected state
+- Database engine icons for MySQL, PostgreSQL, SQLite, and MSSQL
+- A-Z sorted schemas and tables in the sidebar
+- Faster sidebar movement with `Ctrl+D` and `Ctrl+U`
+- Search/scan prefix highlighting in the tree
+- Global return to connection list with `Ctrl+P`
+- Loading spinner while records are being fetched
+- Relationship-aware browsing: press `Enter` on a foreign-key cell to follow it
+- Foreign-key navigation history: press `[` to travel back
+- Smarter inline editing for booleans and enums
+- Nullable boolean/enum cells cycle through `NULL`
+- `Ctrl+A` select-all behavior while editing cells
+- PostgreSQL enum metadata extraction
+- Read-only connection mode
+- Local project config via `.lazysql.toml`
+- Custom keymaps through TOML config
+- CSV export
+- JSON viewer for rows and cells
+- Query history and query preview workflows
 
-I wanted to have a tool like that, but for SQL. I didn't find one that fits my needs, so I created one myself.
+> Some visual details use Nerd Font / Devicon glyphs. Use a Nerd Font-compatible terminal font if database icons appear as boxes.
 
-I live in the terminal, so if you are like me, this tool can become handy for you too.
+## Supported databases
 
-This is my first Open Source project, also, this is my first Go project. I am not a brilliant programmer. I am just a typical JavaScript developer that wanted to learn a new language, I also wanted a TUI SQL Client, so blanca y en botella, leche! (white and bottled).
+| Database | Status |
+| --- | --- |
+| MySQL | Supported |
+| PostgreSQL | Supported |
+| SQLite | Supported |
+| MSSQL | Supported |
+| MongoDB | Not supported |
 
-This project is in ALPHA stage, please feel free to complain about my spaghetti code.
+## Installation
 
-I use Lazysql daily in my full-time job as a full-stack javascript developer in its current (buggy xD) state. So, the plan is to improve and fix my little boy as a side-project in my free time.
-
-### Built With
-
-![Golang][golang-shield]
-![Golang][tview-shield]
-
-## Features
-
-- [x] Cross-platform (macOS, Windows, Linux)
-- [x] Vim Keybindings
-- [x] Can manage multiple connections (Backspace)
-- [x] Tabs
-- [x] SQL Editor (CTRL + e)
-
-<!-- GETTING STARTED -->
-
-## Getting Started
-
-### Installation
-
-#### Homebrew (macOS/Linux)
+### Build this fork from source
 
 ```bash
-brew install lazysql
+git clone <this-fork-url>
+cd oh-my-lazysql
+go build -o oh-my-lazysql .
+./oh-my-lazysql
 ```
 
-#### Install with go package manager
+You can also install the current checkout into your Go bin path:
 
 ```bash
-go install github.com/jorgerojas26/lazysql@latest
+go install .
 ```
 
-#### Binary Releases
+### Upstream releases
 
-For Windows, macOS or Linux, you can download a binary release [here](https://github.com/jorgerojas26/lazysql/releases)
-
-#### Third party (maintained by the community)
-
-Arch Linux users can install it from the AUR with:
-
-```bash
-paru -S lazysql
-
-```
-
-or
-
-```bash
-yay -S lazysql
-
-```
-
-or install it manual with:
-
-```bash
-git clone https://aur.archlinux.org/lazysql.git
-cd lazysql
-makepkg -si
-```
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- USAGE EXAMPLES -->
-
-## Configuration
-
-If the `XDG_CONFIG_HOME` environment variable is set, the configuration file will be located at:
-
-- `${XDG_CONFIG_HOME}/lazysql/config.toml`
-
-If not, the configuration file will be located at:
-
-- Windows: `%APPDATA%\lazysql\config.toml`
-- macOS: `~/Library/Application Support/lazysql/config.toml`
-- Linux: `~/.config/lazysql/config.toml`
-
-The configuration file is a TOML file and can be used to define multiple connections.
-
-### Example configuration
-
-```toml
-[[database]]
-Name = 'Production database'
-Provider = 'postgres'
-DBName = 'foo'
-URL = 'postgres://${user}:urlencodedpassword@localhost:${port}/foo'
-ReadOnly = true
-Commands = [
-  { Command = 'ssh -tt remote-bastion -L ${port}:localhost:5432', WaitForPort = '${port}' },
-  { Command = 'whoami', SaveOutputTo = 'user' },
-]
-[[database]]
-Name = 'Development database'
-Provider = 'postgres'
-DBName = 'foo'
-URL = 'postgres://postgres:urlencodedpassword@localhost:5432/foo'
-[application]
-DefaultPageSize = 300
-DisableSidebar = false
-SidebarOverlay = false
-JSONViewerWordWrap = false
-EnterOpensJSONViewer = false
-```
-
-The `ReadOnly` field (optional, defaults to `false`) can be set to `true` to enable read-only mode for a connection. When enabled, all mutation queries (INSERT, UPDATE, DELETE, DROP, etc.) will be blocked.
-
-The `[application]` section is used to define some app settings. Not all settings are available yet, this is a work in progress.
-
-### Application settings
-
-| Setting | Default | Description |
-| ------- | ------- | ----------- |
-| DefaultPageSize | 300 | Number of records to fetch per page |
-| DisableSidebar | false | Disable the sidebar |
-| SidebarOverlay | false | Show sidebar as overlay instead of side panel |
-| JSONViewerWordWrap | false | Enable word wrap in JSON viewer |
-| EnterOpensJSONViewer | false | Open JSON viewer when pressing Enter on a cell |
-
-### Local Configuration
-
-You can place a `.lazysql.toml` file in your project directory (next to your `.git` folder) to override the global configuration for that project. This is useful for defining project-specific database connections or settings.
-
-lazysql searches for `.lazysql.toml` by walking up from the current working directory. It stops at the git repository root (where `.git` is found). If no local config is found, the global configuration is used as-is.
-
-**Merge behavior:**
-
-| Section | Behavior |
-| ------- | -------- |
-| `[application]` | Deep merge — local values override global, unset fields keep global/defaults |
-| `[[database]]` | Replace — local connections completely replace global connections |
-| `[keymap.*]` | Deep merge — local keybindings override global ones for the same command |
-
-**Example `.lazysql.toml`:**
-
-```toml
-[application]
-DefaultPageSize = 500
-
-[[database]]
-Name = 'Local development'
-Provider = 'postgres'
-URL = 'postgres://localhost/myproject_dev'
-```
-
-With this local config, `DefaultPageSize` overrides the global value, and only the `Local development` connection is available (global connections are replaced).
-
-Environment variables (`${env:VAR_NAME}`) work in local config files just like in the global config.
-
-Note: The local config file is read-only — saving connections from the UI always writes to the global config file.
-
+The original LazySQL project publishes releases and package-manager instructions at [jorgerojas26/lazysql](https://github.com/jorgerojas26/lazysql). Those releases are upstream builds, not necessarily this fork's current behavior.
 
 ## Usage
 
-> For a list of keyboard shortcuts press `?`
-
-Open the TUI with:
-```console
-$ lazysql
-```
-
-To launch lazysql with the ability to pick from the saved connections.
-```console
-$ lazysql [connection_url]
-```
-
-To launch lazysql and connect to database at [connection_url].
-
-```console
-$ lazysql --read-only [connection_url]
-```
-
-To launch lazysql in read-only mode.
-
-### Connect to a DB
-
-1. Start `lazysql`
-2. Create a new connection (press `n`)
-3. Provide a name for the connection as well as the URL to connect to (see <a href="#example-connection-urls">example connection URL</a>)
-4. Connect to the DB (press `<Enter>`)
-
-If you already have a connection set up:
-1. Start `lazysql`
-2. Select the right connection (press `j` and `h` for navigation)
-3. Connect to the DB (press `c` or `<Enter>`)
-
-### Create a table
-
-There is currently no way to create a table from the TUI.
-However you can run the query to create the table as a SQL-Query,
-inside the <a href="#execute-sql-queries">SQL Editor</a>.
-
-You can update the tree by pressing `R`, so you can see your newly created table.
-
-### Execute SQL queries
-
-1. Press `<Ctrl+E>` to open the built-in SQL Editor
-2. Write the SQL query
-3. Press `<Ctrl+R>` to execute the SQL query
-
-> To switch back to the table-tree press `H`
->
-> After executing a `SELECT`-query a table will be displayed under the SQL-Editor
-> with the query-result. \
-> To switch focus back to SQL-Editor press `/`
-
-### Open/view a table
-
-1. Expand the table-tree by pressing `e` or `<Enter>`
-2. Select the table you want to view
-    - next node `j`
-    - previous node `k`
-    - last node `G`
-    - first node `g`
-3. Press `<Enter>` to open the table
-
-> To switch back to the table-tree press `H` \
-> To switch back to the table press `L`
-
-### Filter rows
-
-1. [Open a table](#openview-a-table)
-2. Press `/` to focus the filter input
-3. Write a `WHERE`-clause to filter the table
-4. Press `<Enter>` to submit your filter
-
-> To remove the filter, focus the filter input (press `/`) and press `<Esc>`.
-
-### Insert a row
-
-1. [Open a table](#openview-a-table)
-2. Press `1` to switch to the record tab
-3. Press `o` to insert a new row
-4. Fill out all columns
-5. Press `<Ctrl+S>` to save the changes
-
-### Edit a column
-
-1. [Open a table](#openview-a-table)
-2. Press `1` to switch to the record tab
-3. Move to the column you want to edit
-4. Press `c` to edit, Press `<Enter>` to submit
-5. Press `<Ctrl+S>` to save the changes
-
-### Export to CSV
-
-#### From Table View
-
-1. [Open a table](#openview-a-table)
-2. Apply filters or sorting as needed
-3. Press `E` to open the export dialog
-4. Optionally modify the file path and batch size
-5. Select export scope:
-   - Export Current Page: Export only the currently displayed rows
-   - Export All Records: Fetch and export all records from the table
-
-> Batch size (default: 10000): When exporting all records, data is fetched in batches to avoid timeout or memory issues with large tables. Increase for faster exports, decrease if you encounter any errors.
->
-> The default file path is `~/Downloads/{database}_{table}_{timestamp}.csv`.
-
-#### From SQL Editor
-
-1. [Execute a SQL query](#execute-sql-queries)
-2. Press `E` to open the export dialog
-3. Optionally modify the file path
-4. Select **Export** to save all query results
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-## Support
-
-- [x] MySQL
-- [x] PostgreSQL
-- [x] SQLite
-- [x] MSSQL
-- [ ] MongoDB
-
-Support for multiple RDBMS is a work in progress.
-
-<!-- COMMANDS -->
-
-## Commands
-
-In some cases, mostly when connecting to remote databases, it might be necessary to run a custom command
-before being able to connect to the database. For example when you can only access the database through
-a remote bastion, you would probably first need to open an SSH tunnel by running the following command
-in a separate terminal:
+Open the connection picker:
 
 ```bash
-ssh remote-bastion -L 5432:localhost:5432
+oh-my-lazysql
 ```
 
-In order to make it easier to run these commands, lazysql supports running custom commands before connecting
-to the database. You can define these commands in the configuration file like this:
+Connect directly with a URL:
+
+```bash
+oh-my-lazysql 'postgres://user:pass@localhost:5432/app'
+```
+
+Open in read-only mode:
+
+```bash
+oh-my-lazysql --read-only 'postgres://user:pass@localhost:5432/app'
+```
+
+Use a specific config file:
+
+```bash
+oh-my-lazysql --config ./config.toml
+```
+
+Other flags:
+
+```bash
+oh-my-lazysql --version
+oh-my-lazysql --loglevel debug
+oh-my-lazysql --logfile ./oh-my-lazysql.log
+```
+
+## Configuration
+
+OhMyLazySQL currently reuses the upstream LazySQL config locations:
+
+- `$XDG_CONFIG_HOME/lazysql/config.toml` when `XDG_CONFIG_HOME` is set
+- macOS: `~/Library/Application Support/lazysql/config.toml`
+- Linux: `~/.config/lazysql/config.toml`
+- Windows: `%APPDATA%\lazysql\config.toml`
+
+### Application settings
+
+```toml
+[application]
+default_page_size = 300
+disable_sidebar = false
+sidebar_overlay = false
+max_query_history_per_connection = 100
+tree_width = 30
+json_viewer_word_wrap = false
+enter_opens_json_viewer = false
+```
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `default_page_size` | `300` | Number of rows fetched per page |
+| `disable_sidebar` | `false` | Start without the table tree sidebar |
+| `sidebar_overlay` | `false` | Show sidebar as an overlay instead of a side panel |
+| `max_query_history_per_connection` | `100` | Query history entries retained per connection |
+| `tree_width` | `30` | Preferred tree/sidebar width |
+| `json_viewer_word_wrap` | `false` | Wrap long JSON lines |
+| `enter_opens_json_viewer` | `false` | Open JSON viewer with `Enter` on normal cells |
+
+### Local project config
+
+Place `.lazysql.toml` in a project directory to override the global config for that repo. OhMyLazySQL walks upward from the current directory until it finds `.lazysql.toml` or reaches the Git root.
+
+Merge behavior:
+
+| Section | Behavior |
+| --- | --- |
+| `[application]` | Deep merge; local values override global/default values |
+| `[[database]]` | Replace; local connections replace global connections |
+| `[keymap.*]` | Deep merge; local keybindings override matching commands |
+
+Example:
+
+```toml
+[application]
+default_page_size = 500
+
+[[database]]
+Name = "Local development"
+Provider = "postgres"
+URL = "postgres://localhost/myproject_dev"
+```
+
+Saving connections from the UI writes to the global config file, not `.lazysql.toml`.
+
+## Connections
+
+You can create connections in the TUI or define them in TOML.
+
+### Guided fields or URL mode
+
+The connection form supports two modes:
+
+- **Guided fields** — pick a provider and fill host, port, user, password, and database
+- **Connection URL** — paste a full connection string
+
+Provider defaults are filled automatically:
+
+| Provider | Default port |
+| --- | --- |
+| MySQL | `3306` |
+| PostgreSQL | `5432` |
+| MSSQL | `1433` |
+| SQLite | empty/path based |
+
+### Example connection config
 
 ```toml
 [[database]]
-Name = 'server'
-Provider = 'postgres'
-DBName = 'foo'
-URL = 'postgres://${user}:password@localhost:${port}/foo'
+Name = "Production"
+Provider = "postgres"
+DBName = "app"
+URL = "postgres://${env:DB_USER}:${env:DB_PASSWORD}@localhost:5432/app"
+ReadOnly = true
+
+[[database]]
+Name = "Local MySQL"
+Provider = "mysql"
+URL = "mysql://root:password@localhost:3306/app"
+```
+
+### Environment variables
+
+Use `${env:VAR_NAME}` inside config values:
+
+```toml
+[[database]]
+Name = "Production"
+Provider = "postgres"
+URL = "postgres://${env:DB_USER}:${env:DB_PASSWORD}@localhost:5432/app"
+```
+
+Undefined environment variables resolve to an empty string.
+
+### Connection helper commands
+
+Connections can run commands before connecting. This is useful for SSH tunnels, port-forwarding, or dynamic secrets.
+
+```toml
+[[database]]
+Name = "Bastion Postgres"
+Provider = "postgres"
+DBName = "app"
+URL = "postgres://${user}:password@localhost:${port}/app"
 Commands = [
-  { Command = 'ssh -tt remote-bastion -L ${port}:localhost:5432', WaitForPort = '${port}' },
-  { Command = 'whoami', SaveOutputTo = 'user' },
+  { Command = "ssh -tt remote-bastion -L ${port}:localhost:5432", WaitForPort = "${port}" },
+  { Command = "whoami", SaveOutputTo = "user" }
 ]
 ```
 
-The `Command` field is required and can contain any command that you would normally run in your terminal.
-The `WaitForPort` field is optional and can be used to wait for a specific port to be open before continuing.
-The `SaveOutputTo` field is optional and can be used to make user-defined variables. The output (`stdout`) from the command will be saved into the variable, and the variable can be used in the URL or future commands via the `${VARIABLE}` syntax.
+Fields:
 
-When you define the `${port}` variable in the URL field, lazysql will automatically replace it with a random
-free port number. This port number will then be used in the connection URL and is available in the `Commands`
-field so that you can use it to configure the command.
+| Field | Description |
+| --- | --- |
+| `Command` | Shell command to run |
+| `WaitForPort` | Wait until this port is open before connecting |
+| `SaveOutputTo` | Save stdout to a variable usable as `${name}` |
+| `Timeout` | Startup timeout in seconds |
 
-You can even chain commands to, for example, connect to a remote server and then to a postgres container
-running in a remote k8s cluster:
+`$SQL_EDITOR`, `$EDITOR`, and `$VISUAL` are used for editor integration; see [External editor](#external-editor).
 
-```toml
-[[database]]
-Name = 'container'
-Provider = 'postgres'
-DBName = 'foo'
-URL = 'postgres://postgres:password@localhost:${port}/foo'
-Commands = [
-  { Command = 'ssh -tt remote-bastion -L 6443:localhost:6443', WaitForPort = '6443' },
-  { Command = 'kubectl port-forward service/postgres ${port}:5432 --kubeconfig /path/to/kube.conf', WaitForPort = '${port}' }
-]
+### Example connection URLs
+
+```text
+postgres://user:pass@localhost/dbname
+pg://user:pass@localhost/dbname?sslmode=disable
+mysql://user:pass@localhost/dbname
+mysql:/var/run/mysqld/mysqld.sock
+sqlserver://user:pass@remote-host.com/dbname
+mssql://user:pass@remote-host.com/instance/dbname
+ms://user:pass@remote-host.com:port/instance/dbname?keepAlive=10
+file:myfile.sqlite3?loc=auto
+/path/to/sqlite/file/test.db
+odbc+postgres://user:pass@localhost:port/dbname?option1=
 ```
 
-## Environment variables
+## Keyboard workflow
 
-You can use environment variables in the configuration file using the `${env:VAR_NAME}` syntax. This is useful for keeping sensitive information like passwords out of the configuration file.
+Press `?` inside the app for the built-in help modal.
 
-```toml
-[[database]]
-Name = 'Production'
-Provider = 'postgres'
-URL = 'postgres://${env:DB_USER}:${env:DB_PASSWORD}@localhost:5432/mydb'
+### Connect
+
+1. Run `oh-my-lazysql`
+2. Press `n` to add a connection, or select an existing one
+3. Press `Enter` or `c` to connect
+4. Use `Ctrl+P` from the main screen to return to the connection list
+
+### Browse tables
+
+1. Focus the tree with `H`
+2. Expand items with `e` or `Enter`
+3. Move with `j`/`k`, `Ctrl+D`/`Ctrl+U`, `g`, and `G`
+4. Press `Enter` on a table to load records
+5. Focus results with `L`
+
+The tree sorts schemas and tables A-Z. When using prefix/scan movement, the selected row shows a highlighted prefix badge.
+
+### Filter, sort, and paginate
+
+- `/` focuses the table filter
+- Enter applies the filter
+- `Esc` clears/unfocuses the filter
+- `K` sorts ascending by the selected column
+- `J` sorts descending by the selected column
+- `>` loads the next page
+- `<` loads the previous page
+- A spinner is shown while records are loading
+
+### Follow related records
+
+When a selected cell belongs to a foreign-key column, press `Enter` to jump to the referenced table and filter to the matching record.
+
+Example:
+
+```text
+orders.user_id = 42  --Enter-->  users where id = 42
 ```
 
-```bash
-export DB_USER=admin
-export DB_PASSWORD=secret
-lazysql
+Press `[` to go back through relationship navigation history. If there is no relationship history, `[` behaves as the normal previous-tab key.
+
+### Edit cells
+
+- `c` starts text editing for the selected cell
+- `Enter` commits the edit
+- `Esc` cancels editing
+- `Ctrl+A` selects the current edit text so the next typed character replaces it
+- `Backspace` clears selected edit text
+- `Ctrl+S` saves pending changes
+
+Boolean columns (`bool`, `boolean`, `tinyint(1)`, `bit`) can be toggled directly with `Enter`:
+
+```text
+true -> false -> NULL -> true
 ```
 
-Note: Undefined environment variables will be replaced with an empty string.
+For non-nullable booleans, `NULL` is skipped.
 
-<!-- KEYBINDINGS -->
+Enum columns cycle through known enum values with `Enter`. Nullable enum columns include `NULL` in the cycle.
+
+### Insert, duplicate, delete
+
+- `o` appends a new row
+- `O` duplicates the selected row
+- `d` marks the selected row for deletion
+- `Ctrl+S` saves pending inserts, updates, and deletes
+
+### SQL editor
+
+- `Ctrl+E` toggles the SQL editor
+- `Ctrl+R` executes the current SQL query
+- After a `SELECT`, results appear under the editor
+- `/` returns focus to the SQL editor from query results
+- `Ctrl+O` opens the SQL editor content in an external editor
+
+### Metadata tabs
+
+Use number keys in the table view:
+
+| Key | Tab |
+| --- | --- |
+| `1` | Records |
+| `2` | Columns |
+| `3` | Constraints |
+| `4` | Foreign keys |
+| `5` | Indexes |
+
+### JSON viewer
+
+- `z` opens the selected cell in the JSON viewer
+- `Z` opens the selected row in the JSON viewer
+- `w` toggles word wrap
+- `y` copies JSON to the clipboard
+- `z`/`Z` closes the viewer
+
+If `enter_opens_json_viewer = true`, `Enter` opens JSON for normal cells. Foreign-key cells still use `Enter` for relationship navigation.
+
+### Export CSV
+
+From table results:
+
+1. Open a table
+2. Apply filters or sorting if needed
+3. Press `E`
+4. Choose current page or all records
+
+From SQL query results:
+
+1. Execute a query
+2. Press `E`
+3. Choose the output path
+
+The default path is:
+
+```text
+~/Downloads/{database}_{table}_{timestamp}.csv
+```
 
 ## Keybindings
 
-### Custom Keybindings
-
-You can customize keybindings by adding a `[keymap.<Group>]` section to your `config.toml` file. Each entry maps a command name to a key.
+Keybindings can be customized with `[keymap.<Group>]` sections in `config.toml` or `.lazysql.toml`.
 
 ```toml
 [keymap.Home]
@@ -431,285 +399,175 @@ Quit = "Esc"
 [keymap.Tree]
 GotoTop = "t"
 Search = "Ctrl-F"
-
 ```
 
-For single character keys, use the character directly (e.g., `"q"`, `"G"`, `"1"`, `"/"`). For special keys, use the [tcell key name](https://github.com/gdamore/tcell/blob/v2.7.4/key.go#L83) (e.g., `"Enter"`, `"Esc"`, `"Ctrl-S"`). Only key names defined in tcell are supported.
+For single-character keys, use the character directly (`"q"`, `"G"`, `"/"`). For special keys, use tcell key names (`"Enter"`, `"Esc"`, `"Ctrl-S"`). Group names are case-insensitive.
 
-Group names are case-insensitive (`Home`, `home`, and `HOME` all work).
+Available groups:
 
-Available groups: `Home`, `Connection`, `Tree`, `TreeFilter`, `Table`, `Editor`, `Sidebar`, `QueryPreview`, `QueryHistory`, `JSONViewer`.
-
-### Default Keybindings
-
-#### Home
-
-| Default Key | Command | Description |
-| --- | --- | --- |
-| L | MoveRight | Focus table |
-| H | MoveLeft | Focus tree |
-| Ctrl-E | SwitchToEditorView | Open SQL editor |
-| Ctrl-S | Save | Execute pending changes |
-| q | Quit | Quit |
-| Backspace | SwitchToConnectionsView | Switch to connections list |
-| ? | HelpPopup | Help |
-| Ctrl-P | SearchGlobal | Global search |
-| Ctrl-_ | ToggleQueryHistory | Toggle query history modal |
-| T | ToggleTree | Toggle file tree |
-
-#### Connection
-
-| Default Key | Command | Description |
-| --- | --- | --- |
-| n | NewConnection | Create a new database connection |
-| c | Connect | Connect to database |
-| Enter | Connect | Connect to database |
-| e | EditConnection | Edit a database connection |
-| d | DeleteConnection | Delete a database connection |
-| q | Quit | Quit |
-
-#### Tree
-
-| Default Key | Command | Description |
-| --- | --- | --- |
-| g | GotoTop | Go to top |
-| G | GotoBottom | Go to bottom |
-| Enter | Execute | Open |
-| j | MoveDown | Go down |
-| Down | MoveDown | Go down |
-| Ctrl-U | PagePrev | Go page up |
-| Ctrl-D | PageNext | Go page down |
-| k | MoveUp | Go up |
-| Up | MoveUp | Go up |
-| / | Search | Search |
-| n | NextFoundNode | Go to next found node |
-| N | PreviousFoundNode | Go to previous found node |
-| p | PreviousFoundNode | Go to previous found node |
-| P | NextFoundNode | Go to next found node |
-| c | TreeCollapseAll | Collapse all |
-| e | ExpandAll | Expand all |
-| R | Refresh | Refresh tree |
-
-#### Tree Filter
-
-| Default Key | Command | Description |
-| --- | --- | --- |
-| Esc | UnfocusTreeFilter | Unfocus tree filter |
-| Enter | CommitTreeFilter | Commit tree filter search |
-
-#### Table
-
-| Default Key | Command | Description |
-| --- | --- | --- |
-| / | Search | Search |
-| c | Edit | Change cell |
-| d | Delete | Delete row |
-| w | GotoNext | Go to next cell |
-| b | GotoPrev | Go to previous cell |
-| $ | GotoEnd | Go to last cell |
-| 0 | GotoStart | Go to first cell |
-| y | Copy | Copy cell value to clipboard |
-| o | AppendNewRow | Append new row |
-| O | DuplicateRow | Duplicate row |
-| J | SortDesc | Sort descending |
-| R | Refresh | Refresh the current table |
-| K | SortAsc | Sort ascending |
-| C | SetValue | Toggle value menu (NULL, EMPTY, DEFAULT) |
-| [ | TabPrev | Switch to previous tab |
-| ] | TabNext | Switch to next tab |
-| { | TabFirst | Switch to first tab |
-| } | TabLast | Switch to last tab |
-| X | TabClose | Close tab |
-| > | PageNext | Switch to next page |
-| < | PagePrev | Switch to previous page |
-| 1 | RecordsMenu | Switch to records menu |
-| 2 | ColumnsMenu | Switch to columns menu |
-| 3 | ConstraintsMenu | Switch to constraints menu |
-| 4 | ForeignKeysMenu | Switch to foreign keys menu |
-| 5 | IndexesMenu | Switch to indexes menu |
-| S | ToggleSidebar | Toggle sidebar |
-| s | FocusSidebar | Focus sidebar |
-| Z | ShowRowJSONViewer | Toggle JSON viewer for row |
-| z | ShowCellJSONViewer | Toggle JSON viewer for cell |
-| E | ExportCSV | Export to CSV |
-
-#### Editor
-
-| Default Key | Command | Description |
-| --- | --- | --- |
-| Ctrl-R | Execute | Execute query |
-| Esc | UnfocusEditor | Unfocus editor |
-| Ctrl-Space | OpenInExternalEditor | Open in external editor |
-
-Specific editor for lazysql can be set by `$SQL_EDITOR`.
-
-### JSON Viewer
-
-| Key | Action           |
-| --- | ---------------- |
-| w   | Toggle word wrap |
-| y   | Copy to clipboard|
-| z/Z | Close viewer     |
-
-The JSON viewer can be opened by pressing `z` (cell) or `Z` (row) on a table cell. If `EnterOpensJSONViewer` is enabled, pressing Enter on a cell will also open the JSON viewer.
-
-
-#### Sidebar
-
-| Default Key | Command | Description |
-| --- | --- | --- |
-| s | UnfocusSidebar | Focus table |
-| S | ToggleSidebar | Toggle sidebar |
-| j | MoveDown | Focus next field |
-| k | MoveUp | Focus previous field |
-| g | GotoStart | Focus first field |
-| G | GotoEnd | Focus last field |
-| c | Edit | Edit field |
-| Enter | CommitEdit | Add edit to pending changes |
-| Esc | DiscardEdit | Discard edit |
-| C | SetValue | Toggle value menu (NULL, EMPTY, DEFAULT) |
-| y | Copy | Copy value to clipboard |
-
-#### Query Preview
-
-| Default Key | Command | Description |
-| --- | --- | --- |
-| Ctrl-S | Save | Execute queries |
-| q | Quit | Quit |
-| y | Copy | Copy query to clipboard |
-| d | Delete | Delete query |
-
-#### Query History
-
-| Default Key | Command | Description |
-| --- | --- | --- |
-| s | Save | Save query |
-| d | Delete | Delete query |
-| q | Quit | Quit |
-| y | Copy | Copy query to clipboard |
-| / | Search | Search |
-| Ctrl-_ | ToggleQueryHistory | Toggle query history modal |
-| [ | TabPrev | Switch to previous tab |
-| ] | TabNext | Switch to next tab |
-
-#### JSON Viewer
-
-| Default Key | Command | Description |
-| --- | --- | --- |
-| Z | ShowRowJSONViewer | Toggle JSON viewer |
-| z | ShowCellJSONViewer | Toggle JSON viewer |
-| y | Copy | Copy value to clipboard |
-| w | ToggleJSONViewerWrap | Toggle word wrap |
-
-### External Editor
-
-The external editor feature (CTRL + Space in SQL Editor, CTRL + o in Table) uses the following environment variables to determine which editor to use:
-
-- SQL Editor: `$SQL_EDITOR` > `$EDITOR` > `$VISUAL` > `vi`
-- Table cells: `$EDITOR` > `$VISUAL` > `vi`
-
-This feature is only available on Linux and macOS.
-
-
-## Example connection URLs
-
-```
-postgres://user:pass@localhost/dbname
-pg://user:pass@localhost/dbname?sslmode=disable
-mysql://user:pass@localhost/dbname
-mysql:/var/run/mysqld/mysqld.sock
-sqlserver://user:pass@remote-host.com/dbname
-mssql://user:pass@remote-host.com/instance/dbname
-ms://user:pass@remote-host.com:port/instance/dbname?keepAlive=10
-oracle://user:pass@somehost.com/sid
-sap://user:pass@localhost/dbname
-file:myfile.sqlite3?loc=auto
-/path/to/sqlite/file/test.db
-odbc+postgres://user:pass@localhost:port/dbname?option1=
+```text
+Home, Connection, Tree, TreeFilter, Table, Editor, Sidebar,
+QueryPreview, QueryHistory, JSONViewer
 ```
 
-<!-- ROADMAP -->
+### Home
 
-## Roadmap
+| Key | Action |
+| --- | --- |
+| `L` / `Ctrl+L` | Focus table |
+| `H` / `Ctrl+H` | Focus tree |
+| `Ctrl+E` | Toggle SQL editor |
+| `Ctrl+S` | Save pending table changes |
+| `Ctrl+P` | Return to connection list |
+| `Ctrl+_` | Toggle query history |
+| `T` | Toggle tree/sidebar |
+| `[` | Back through relationship navigation history |
+| `?` | Help |
+| `q` | Quit |
 
-- [ ] Support for NoSQL databases
-- [ ] Columns and indexes creation through TUI
-- [x] Table tree input filter
-- [x] Custom keybindings
-- [x] Show keybindings on a modal
-- [x] Rewrite row `create`, `update` and `delete` logic
+### Connection list
 
-See the [open issues](https://github.com/jorgerojas26/lazysql/issues) for a full list of proposed features (and known issues).
+| Key | Action |
+| --- | --- |
+| `n` | New connection |
+| `e` | Edit connection |
+| `d` | Delete connection |
+| `c` / `Enter` | Connect |
+| `q` | Quit |
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+### Tree
+
+| Key | Action |
+| --- | --- |
+| `j` / `Down` | Move down |
+| `k` / `Up` | Move up |
+| `Ctrl+D` | Jump/page down |
+| `Ctrl+U` | Jump/page up |
+| `g` | Top |
+| `G` | Bottom |
+| `e` | Expand all/open |
+| `Enter` | Open selected node/table |
+| `/` | Search |
+| `n` / `P` | Next found node |
+| `N` / `p` | Previous found node |
+| `c` | Collapse all |
+| `R` | Refresh tree |
+
+### Table/results
+
+| Key | Action |
+| --- | --- |
+| `/` | Filter/search |
+| `c` | Edit selected cell |
+| `Enter` | Follow FK cell, toggle bool/enum cell, or commit edit depending on context |
+| `d` | Delete selected row |
+| `o` | Append row |
+| `O` | Duplicate row |
+| `Ctrl+S` | Save pending changes |
+| `y` | Copy selected cell |
+| `w` / `b` | Move next/previous cell |
+| `0` / `$` | First/last cell |
+| `K` / `J` | Sort ascending/descending |
+| `R` | Refresh current table |
+| `C` | Set value menu (`NULL`, empty, `DEFAULT`) |
+| `[` | Go back through FK history, otherwise previous tab |
+| `]` | Next tab |
+| `{` / `}` | First/last tab |
+| `>` / `<` | Next/previous page |
+| `1`-`5` | Records, columns, constraints, foreign keys, indexes |
+| `S` | Toggle sidebar |
+| `s` | Focus sidebar |
+| `z` / `Z` | JSON viewer for cell/row |
+| `E` | Export CSV |
+| `e` | Open selected cell in external editor |
+
+### SQL editor
+
+| Key | Action |
+| --- | --- |
+| `Ctrl+R` | Execute query |
+| `Esc` | Unfocus editor |
+| `Ctrl+O` | Open in external editor |
+
+### Sidebar/detail editor
+
+| Key | Action |
+| --- | --- |
+| `j` / `k` | Move field down/up |
+| `g` / `G` | First/last field |
+| `c` | Edit field |
+| `Enter` | Commit field edit |
+| `Esc` | Discard field edit |
+| `C` | Set value menu |
+| `y` | Copy value |
+| `s` | Return focus to table |
+| `S` | Toggle sidebar |
+
+### Query preview/history
+
+| Key | Action |
+| --- | --- |
+| `Ctrl+S` | Execute previewed queries |
+| `s` | Save query in history |
+| `d` | Delete query/history entry |
+| `y` | Copy query |
+| `/` | Search query history |
+| `Ctrl+_` | Toggle query history |
+| `[` / `]` | Previous/next history tab |
+| `q` | Close |
+
+## External editor
+
+External editor support is available on Linux and macOS.
+
+Resolution order:
+
+- SQL editor: `$SQL_EDITOR` → `$EDITOR` → `$VISUAL` → `vi`
+- Table cells: `$EDITOR` → `$VISUAL` → `vi`
 
 ## Clipboard support
 
-We use [atotto/clipboard](https://github.com/atotto/clipboard?tab=readme-ov-file#clipboard-for-go) to copy to clipboard.
+OhMyLazySQL uses [atotto/clipboard](https://github.com/atotto/clipboard) for clipboard operations.
 
-Platforms:
+Platform notes:
 
-- OSX
-- Windows 7 (probably work on other Windows)
-- Linux, Unix (requires 'xclip' or 'xsel' command to be installed)
+- macOS: supported
+- Windows: supported
+- Linux/Unix: requires `xclip` or `xsel`
 
-<!-- CONTRIBUTING -->
+## Development
 
-## Contributing
+Requirements:
 
-Contributions, issues, and pull requests are welcome!
+- Go 1.25+
+- A terminal with good color support
+- Nerd Font-compatible font recommended for icons
 
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+Common commands:
 
-<!-- LICENSE -->
+```bash
+go test ./...
+go build -o oh-my-lazysql .
+./oh-my-lazysql
+```
+
+## Attribution
+
+This fork is based on [jorgerojas26/lazysql](https://github.com/jorgerojas26/lazysql), created by Jorge Rojas. Upstream LazySQL established the original TUI database client, driver interfaces, configuration model, and much of the application foundation.
+
+This README describes the current behavior of this fork. If you are looking for upstream releases, upstream package-manager instructions, or upstream issue tracking, visit [jorgerojas26/lazysql](https://github.com/jorgerojas26/lazysql).
+
+Related projects and inspiration:
+
+- [Lazygit](https://github.com/jesseduffield/lazygit)
+- [Gobang](https://github.com/TaKO8Ki/gobang)
+- [Mitzasql](https://github.com/vladbalmos/mitzasql)
 
 ## License
 
-Distributed under the MIT License. See `LICENSE.txt` for more information.
+Distributed under the MIT License. See `LICENSE.txt` for details.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
-<!-- CONTACT -->
-
-## Contact
-
-Jorge Rojas - [LinkedIn](https://www.linkedin.com/in/jorgerojas26/) - jorgeluisrojasb@gmail.com
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-## Alternatives
-
-- [Mitzasql](https://github.com/vladbalmos/mitzasql)
-- [Gobang](https://github.com/TaKO8Ki/gobang)
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-<!-- MARKDOWN LINKS & IMAGES -->
-<!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
-
-[contributors-shield]: https://img.shields.io/github/contributors/jorgerojas26/lazysql?style=for-the-badge
-[contributors-url]: https://github.com/jorgerojas26/lazysql/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/jorgerojas26/lazysql?style=for-the-badge
-[forks-url]: https://github.com/jorgerojas26/lazysql/network/members
-[stars-shield]: https://img.shields.io/github/stars/jorgerojas26/lazysql?style=for-the-badge
-[stars-url]: https://github.com/jorgerojas26/lazysql/stargazers
-[issues-shield]: https://img.shields.io/github/issues/jorgerojas26/lazysql?style=for-the-badge
-[issues-url]: https://github.com/jorgerojas26/lazysql/issues
-[license-shield]: https://img.shields.io/github/license/jorgerojas26/lazysql.svg?style=for-the-badge
-[license-url]: https://github.com/jorgerojas26/lazysql/blob/main/LICENSE.txt
-[linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=for-the-badge&logo=linkedin&colorB=555
-[linkedin-url]: https://linkedin.com/in/jorgerojas26
 [product-screenshot1]: images/lazysql-connection-selection.png
 [product-screenshot2]: images/lazysql.png
-[golang-shield]: https://img.shields.io/badge/Golang-gray?style=for-the-badge&logo=go
-[tview-shield]: https://img.shields.io/badge/tview-gray?style=for-the-badge&logo=go
-
-## Star History
-
-<a href="https://www.star-history.com/#jorgerojas26/lazysql&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=jorgerojas26/lazysql&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=jorgerojas26/lazysql&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=jorgerojas26/lazysql&type=date&legend=top-left" />
- </picture>
-</a>

@@ -748,7 +748,7 @@ func TestMySQL_GetForeignKeys_Error(t *testing.T) {
 
 	mysql := &MySQL{Connection: db}
 
-	mock.ExpectQuery("SELECT TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME, REFERENCED_COLUMN_NAME, REFERENCED_TABLE_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA = \\? AND REFERENCED_TABLE_NAME = \\?").WithArgs(testDBNameMySQL, testDBTableNameMySQL).WillReturnError(errors.New("query error"))
+	mock.ExpectQuery("SELECT TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME, REFERENCED_COLUMN_NAME, REFERENCED_TABLE_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA = \\? AND TABLE_NAME = \\? AND REFERENCED_TABLE_NAME IS NOT NULL").WithArgs(testDBNameMySQL, testDBTableNameMySQL).WillReturnError(errors.New("query error"))
 
 	_, err = mysql.GetForeignKeys(testDBNameMySQL, testDBTableNameMySQL)
 
@@ -1314,7 +1314,7 @@ func TestMySQL_GetForeignKeys(t *testing.T) {
 	mock.ExpectQuery(
 		"SELECT TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME, REFERENCED_COLUMN_NAME, REFERENCED_TABLE_NAME "+
 			"FROM information_schema.KEY_COLUMN_USAGE "+
-			"WHERE REFERENCED_TABLE_SCHEMA = \\? AND REFERENCED_TABLE_NAME = \\?").
+			"WHERE TABLE_SCHEMA = \\? AND TABLE_NAME = \\? AND REFERENCED_TABLE_NAME IS NOT NULL").
 		WithArgs(testDBNameMySQL, testDBTableNameMySQL).
 		WillReturnRows(rows)
 

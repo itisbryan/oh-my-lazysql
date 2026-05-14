@@ -244,34 +244,38 @@ func TestPostgres_GetTableColumns(t *testing.T) {
 
 	pg := &Postgres{Connection: db, CurrentDatabase: DBNamePostgres}
 
-	// Mocks expected query with all 5 columns including the new "comment" field
+	// Mocks expected query with column comments and enum values.
 	rows := sqlmock.NewRows([]string{
 		"column_name",
 		"data_type",
 		"is_nullable",
 		"column_default",
 		"comment",
+		"enum_values",
 	}).AddRow(
 		"id",
 		"integer",
 		"NO",
 		"nextval('test_table_id_seq'::regclass)",
 		"Primary key identifier",
+		"",
 	).AddRow(
 		"name",
 		"character varying",
 		"YES",
 		"",
 		"User name field",
+		"",
 	).AddRow(
-		"email",
-		"character varying",
+		"status",
+		"USER-DEFINED",
 		"YES",
 		"",
-		"", // Empty comment
+		"Status enum",
+		"draft,published,archived",
 	)
 
-	mock.ExpectQuery("SELECT c.column_name, c.data_type, c.is_nullable, c.column_default, COALESCE(pd.description, '') as comment FROM information_schema.columns c LEFT JOIN pg_class pc ON pc.relname = c.table_name AND pc.relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = c.table_schema) LEFT JOIN pg_namespace pn ON pn.nspname = c.table_schema AND pn.oid = pc.relnamespace LEFT JOIN pg_description pd ON pd.objoid = pc.oid AND pd.objsubid = c.ordinal_position WHERE c.table_catalog = $1 AND c.table_schema = $2 AND c.table_name = $3 ORDER by c.ordinal_position").
+	mock.ExpectQuery("SELECT c.column_name, c.data_type, c.is_nullable, c.column_default, COALESCE(pd.description, '') as comment, COALESCE((SELECT string_agg(e.enumlabel, ',' ORDER BY e.enumsortorder) FROM pg_type t JOIN pg_enum e ON e.enumtypid = t.oid JOIN pg_namespace n ON n.oid = t.typnamespace WHERE t.typname = c.udt_name AND n.nspname = c.udt_schema), '') as enum_values FROM information_schema.columns c LEFT JOIN pg_class pc ON pc.relname = c.table_name AND pc.relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = c.table_schema) LEFT JOIN pg_namespace pn ON pn.nspname = c.table_schema AND pn.oid = pc.relnamespace LEFT JOIN pg_description pd ON pd.objoid = pc.oid AND pd.objsubid = c.ordinal_position WHERE c.table_catalog = $1 AND c.table_schema = $2 AND c.table_name = $3 ORDER by c.ordinal_position").
 		WithArgs(DBNamePostgres, schemaPostgres, tableNamePostgres).
 		WillReturnRows(rows)
 
@@ -281,10 +285,10 @@ func TestPostgres_GetTableColumns(t *testing.T) {
 	}
 
 	expected := [][]string{
-		{"column_name", "data_type", "is_nullable", "column_default", "comment"},
-		{"id", "integer", "NO", "nextval('test_table_id_seq'::regclass)", "Primary key identifier"},
-		{"name", "character varying", "YES", "", "User name field"},
-		{"email", "character varying", "YES", "", ""},
+		{"column_name", "data_type", "is_nullable", "column_default", "comment", "enum_values"},
+		{"id", "integer", "NO", "nextval('test_table_id_seq'::regclass)", "Primary key identifier", ""},
+		{"name", "character varying", "YES", "", "User name field", ""},
+		{"status", "USER-DEFINED", "YES", "", "Status enum", "draft,published,archived"},
 	}
 
 	if !reflect.DeepEqual(columns, expected) {
@@ -304,7 +308,7 @@ func TestPostgres_GetTableColumns_Error(t *testing.T) {
 	defer db.Close()
 
 	pg := &Postgres{Connection: db, CurrentDatabase: DBNamePostgres}
-	mock.ExpectQuery("SELECT c.column_name, c.data_type, c.is_nullable, c.column_default, COALESCE\\(pd.description, ''\\) as comment FROM information_schema.columns c LEFT JOIN pg_class pc ON pc.relname = c.table_name AND pc.relnamespace = \\(SELECT oid FROM pg_namespace WHERE nspname = c.table_schema\\) LEFT JOIN pg_namespace pn ON pn.nspname = c.table_schema AND pn.oid = pc.relnamespace LEFT JOIN pg_description pd ON pd.objoid = pc.oid AND pd.objsubid = c.ordinal_position WHERE c.table_catalog = \\$1 AND c.table_schema = \\$2 AND c.table_name = \\$3 ORDER by c.ordinal_position").WithArgs(DBNamePostgres, schemaPostgres, tableNamePostgres).
+	mock.ExpectQuery("SELECT c.column_name, c.data_type, c.is_nullable, c.column_default, .*enum_values FROM information_schema.columns").WithArgs(DBNamePostgres, schemaPostgres, tableNamePostgres).
 		WillReturnError(errors.New("query error"))
 
 	_, err = pg.GetTableColumns(DBNamePostgres, schemaAndTablePostgres)

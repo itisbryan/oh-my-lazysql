@@ -3,10 +3,15 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
+
+var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
+type spinnerTick struct{}
 
 type ResultsModel struct {
 	columns        []GridColumn
@@ -14,6 +19,8 @@ type ResultsModel struct {
 	width          int
 	height         int
 	status         string
+	spinnerFrame  int
+	loading       bool
 	page           int
 	pageSize       int
 	totalRows      int
@@ -28,6 +35,7 @@ type ResultsModel struct {
 	whereFilter    string
 	editingCell    bool
 	editInput      string
+	editSelectAll  bool
 	pendingEdits   map[cellPosition]pendingEdit
 	pendingDeletes map[int]bool
 	insertingRow   bool
@@ -58,11 +66,20 @@ type whereFilterAppliedMsg struct {
 type sortAppliedMsg struct{}
 
 type GridColumn struct {
-	Title string
-	Width int
-	Type  string
-	IsPK  bool
-	IsFK  bool
+	Title      string
+	Width      int
+	Type       string
+	Nullable   bool
+	EnumValues []string
+	ForeignKey *ForeignKeyRef
+	IsPK       bool
+	IsFK       bool
+}
+
+type ForeignKeyRef struct {
+	Table  string
+	Column string
+	Schema string
 }
 
 func NewResultsModel() *ResultsModel {
@@ -82,6 +99,11 @@ func (m *ResultsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.clampSelection()
 	switch msg := msg.(type) {
+	case spinnerTick:
+		m.spinnerFrame = (m.spinnerFrame + 1) % len(spinnerFrames)
+		cmd = tea.Tick(time.Second/6, func(t time.Time) tea.Msg {
+			return spinnerTick{}
+		})
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -247,13 +269,113 @@ func (m *ResultsModel) startCellEdit() {
 	if m.insertingRow {
 		m.editingCell = true
 		m.editInput = m.insertRow[m.col]
+		m.editSelectAll = false
 		return
 	}
 	if m.row >= len(m.rows) || m.col >= len(m.rows[m.row]) {
 		return
 	}
+	if m.isBoolColumn(m.col) {
+		m.toggleBoolCell()
+		return
+	}
+	if m.isEnumColumn(m.col) {
+		m.toggleEnumCell()
+		return
+	}
 	m.editingCell = true
-	m.editInput = ""
+	m.editInput = m.rows[m.row][m.col]
+	m.editSelectAll = false
+}
+
+func (m *ResultsModel) isBoolColumn(col int) bool {
+	if col < 0 || col >= len(m.columns) {
+		return false
+	}
+	lower := strings.ToLower(m.columns[col].Type)
+	return strings.Contains(lower, "bool") || strings.Contains(lower, "tinyint(1)") || lower == "bit"
+}
+
+func (m *ResultsModel) isEnumColumn(col int) bool {
+	return col >= 0 && col < len(m.columns) && len(m.columns[col].EnumValues) > 0
+}
+
+func (m *ResultsModel) toggleBoolCell() {
+	if m.row < 0 || m.row >= len(m.rows) || m.col < 0 || m.col >= len(m.rows[m.row]) || m.col >= len(m.columns) {
+		return
+	}
+
+	current := m.rows[m.row][m.col]
+	newValue := nextBoolValue(current, m.columns[m.col].Nullable)
+	pos := cellPosition{row: m.row, col: m.col}
+	original := current
+	if existing, ok := m.pendingEdits[pos]; ok {
+		original = existing.original
+	}
+
+	m.rows[m.row][m.col] = newValue
+	if newValue == original {
+		delete(m.pendingEdits, pos)
+	} else {
+		m.pendingEdits[pos] = pendingEdit{original: original, value: newValue}
+	}
+}
+
+func nextBoolValue(value string, nullable bool) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "true", "t", "1", "yes", "y":
+		return "false"
+	case "false", "f", "0", "no", "n":
+		if nullable {
+			return "NULL"
+		}
+		return "true"
+	case "null", "null&":
+		return "true"
+	default:
+		return "true"
+	}
+}
+
+func (m *ResultsModel) toggleEnumCell() {
+	if m.row < 0 || m.row >= len(m.rows) || m.col < 0 || m.col >= len(m.rows[m.row]) || m.col >= len(m.columns) {
+		return
+	}
+
+	current := m.rows[m.row][m.col]
+	newValue := nextEnumValue(current, m.columns[m.col].EnumValues, m.columns[m.col].Nullable)
+	pos := cellPosition{row: m.row, col: m.col}
+	original := current
+	if existing, ok := m.pendingEdits[pos]; ok {
+		original = existing.original
+	}
+
+	m.rows[m.row][m.col] = newValue
+	if newValue == original {
+		delete(m.pendingEdits, pos)
+	} else {
+		m.pendingEdits[pos] = pendingEdit{original: original, value: newValue}
+	}
+}
+
+func nextEnumValue(value string, values []string, nullable bool) string {
+	if len(values) == 0 {
+		return value
+	}
+
+	trimmed := strings.TrimSpace(value)
+	for i, candidate := range values {
+		if candidate == trimmed {
+			if i < len(values)-1 {
+				return values[i+1]
+			}
+			if nullable {
+				return "NULL"
+			}
+			return values[0]
+		}
+	}
+	return values[0]
 }
 
 func (m *ResultsModel) updateCellEdit(msg tea.KeyMsg) {
@@ -272,24 +394,42 @@ func (m *ResultsModel) updateCellEdit(msg tea.KeyMsg) {
 		}
 		m.editingCell = false
 		m.editInput = ""
+		m.editSelectAll = false
 	case "tab":
 		m.commitCellEdit()
 		if m.insertingRow && m.col < len(m.insertRow)-1 {
 			m.col++
 			m.editingCell = true
 			m.editInput = m.insertRow[m.col]
+			m.editSelectAll = false
 		}
+	case "ctrl+a":
+		m.editSelectAll = true
 	case "backspace", "ctrl+h":
-		if len(m.editInput) > 0 {
+		if m.editSelectAll {
+			m.editInput = ""
+			m.editSelectAll = false
+		} else if len(m.editInput) > 0 {
 			runes := []rune(m.editInput)
 			m.editInput = string(runes[:len(runes)-1])
-			if m.insertingRow {
-				m.insertRow[m.col] = m.editInput
-			}
+		}
+		if m.insertingRow {
+			m.insertRow[m.col] = m.editInput
+		}
+	case "ctrl+u", "ctrl+k":
+		m.editInput = ""
+		m.editSelectAll = false
+		if m.insertingRow {
+			m.insertRow[m.col] = m.editInput
 		}
 	default:
 		if len(msg.Runes) > 0 {
-			m.editInput += string(msg.Runes)
+			if m.editSelectAll {
+				m.editInput = string(msg.Runes)
+				m.editSelectAll = false
+			} else {
+				m.editInput += string(msg.Runes)
+			}
 			if m.insertingRow {
 				m.insertRow[m.col] = m.editInput
 			}
@@ -302,20 +442,24 @@ func (m *ResultsModel) commitCellEdit() {
 		if m.row < 0 || m.col < 0 || m.col >= len(m.insertRow) {
 			m.editingCell = false
 			m.editInput = ""
+			m.editSelectAll = false
 			return
 		}
 		m.insertRow[m.col] = m.editInput
 		m.editingCell = false
 		m.editInput = ""
+		m.editSelectAll = false
 		if m.col < len(m.insertRow)-1 {
 			m.col++
 			m.editingCell = true
 			m.editInput = m.insertRow[m.col]
+			m.editSelectAll = false
 		}
 		return
 	}
 	if m.row < 0 || m.row >= len(m.rows) || m.col < 0 || m.col >= len(m.rows[m.row]) {
 		m.editingCell = false
+		m.editSelectAll = false
 		return
 	}
 	pos := cellPosition{row: m.row, col: m.col}
@@ -332,6 +476,7 @@ func (m *ResultsModel) commitCellEdit() {
 	}
 	m.editingCell = false
 	m.editInput = ""
+	m.editSelectAll = false
 }
 
 func (m *ResultsModel) updateRowDetail(msg tea.KeyMsg) {
@@ -426,6 +571,7 @@ func (m *ResultsModel) startInsertRow() {
 	m.col = 0
 	m.editingCell = true
 	m.editInput = ""
+	m.editSelectAll = false
 }
 
 func (m *ResultsModel) View() string {
@@ -433,6 +579,12 @@ func (m *ResultsModel) View() string {
 		return lipgloss.NewStyle().
 			Foreground(InverseTextColor).
 			Render("Select a table to load records")
+	}
+
+	if m.loading {
+		return lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#565F89")).
+			Render(spinnerFrames[m.spinnerFrame] + " Loading records...")
 	}
 
 	pagination := "0 rows"
@@ -767,7 +919,7 @@ func (m *ResultsModel) renderGrid(width, height int) string {
 				}
 				if colIdx == m.col {
 					if m.editingCell {
-						cell = renderEditingCell(m.editInput, colWidth)
+						cell = renderEditingCell(m.editInput, colWidth, m.editSelectAll)
 					} else {
 						cell = renderSelectedCell(displayValue, colWidth, special)
 					}
@@ -810,7 +962,7 @@ func (m *ResultsModel) renderGrid(width, height int) string {
 			}
 			colWidth := m.columns[colIdx].Width
 			if m.editingCell && colIdx == m.col {
-				cells = append(cells, divider, renderEditingCell(m.editInput+"▌", colWidth))
+				cells = append(cells, divider, renderEditingCell(m.editInput, colWidth, m.editSelectAll))
 			} else {
 				cells = append(cells, divider, renderInsertCell(value, colWidth))
 			}
@@ -1162,9 +1314,20 @@ func renderSelectedCell(value string, width int, special bool) string {
 	return left + styled + strings.Repeat(" ", padding) + right
 }
 
-func renderEditingCell(value string, width int) string {
+func renderEditingCell(value string, width int, selectAll bool) string {
+	outerStyle := lipgloss.NewStyle().Foreground(editingCellForeground()).Background(lipgloss.Color("#283457")).Width(width)
+	if selectAll && value != "" {
+		text := truncateDisplay(value, max(1, width-1))
+		selection := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#1A1B26")).
+			Background(TertiaryTextColor).
+			Bold(true).
+			Inline(true).
+			Render(text)
+		return outerStyle.Render(selection + "▌")
+	}
 	text := truncateDisplay(value+"▌", width)
-	return lipgloss.NewStyle().Foreground(editingCellForeground()).Background(lipgloss.Color("#283457")).Width(width).Render(text)
+	return outerStyle.Render(text)
 }
 
 func editingCellForeground() lipgloss.Color {
@@ -1196,7 +1359,7 @@ func renderInsertCell(value string, width int) string {
 
 func formatCellValue(value string) (string, bool) {
 	switch value {
-	case "NULL&":
+	case "NULL&", "NULL":
 		return "NULL", true
 	case "EMPTY&":
 		return "EMPTY", true
@@ -1325,16 +1488,22 @@ func (m *ResultsModel) clampSelection() {
 	}
 }
 
-func (m *ResultsModel) SetData(columns []string, colTypes map[string]string, pkCols, fkCols map[string]bool, rows [][]string) {
+func (m *ResultsModel) SetData(columns []string, colTypes map[string]string, nullableCols map[string]bool, enumValues map[string][]string, fkRefs map[string]ForeignKeyRef, pkCols, fkCols map[string]bool, rows [][]string) {
 	tableCols := make([]GridColumn, len(columns))
 	for i, col := range columns {
 		width := max(8, min(34, lipgloss.Width(col)+2))
+		fkRef, hasFK := fkRefs[col]
 		tableCols[i] = GridColumn{
-			Title: col,
-			Width: width,
-			Type:  colTypes[col],
-			IsPK:  pkCols[col],
-			IsFK:  fkCols[col],
+			Title:      col,
+			Width:      width,
+			Type:       colTypes[col],
+			Nullable:   nullableCols[col],
+			EnumValues: enumValues[col],
+			IsPK:       pkCols[col],
+			IsFK:       fkCols[col] || hasFK,
+		}
+		if hasFK {
+			tableCols[i].ForeignKey = &fkRef
 		}
 	}
 	m.columns = tableCols
@@ -1348,6 +1517,7 @@ func (m *ResultsModel) SetData(columns []string, colTypes map[string]string, pkC
 	m.colOffset = 0
 	m.editingCell = false
 	m.editInput = ""
+	m.editSelectAll = false
 	m.pendingEdits = map[cellPosition]pendingEdit{}
 	m.pendingDeletes = map[int]bool{}
 	m.insertingRow = false
