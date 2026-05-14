@@ -69,4 +69,23 @@ var (
 	SecondaryTextColor = lipgloss.Color("#7AA2F7")
 	TertiaryTextColor  = lipgloss.Color("#9ECE6A")
 	InverseTextColor   = lipgloss.Color("#888888")
+
+	// Connection Form Styles
+	formCardStyle = lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#7AA2F7")).
+			Padding(1, 3).
+			Width(60)
+
+	formTitleStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#BB9AF7")).
+			Bold(true).
+			MarginBottom(1)
+
+	formSectionStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#7AA2F7")).
+			MarginTop(1)
+
+	formDecoStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#3B4261"))
 )

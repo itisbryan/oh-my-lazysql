@@ -59,7 +59,7 @@ func NewHomeModel(data any) *HomeModel {
 		conn = models.Connection{}
 	}
 
-	logger.Info("NewHomeModel", map[string]any{
+	logger.Info("NewHomeModel received", map[string]any{
 		"provider": conn.Provider,
 		"name":     conn.Name,
 		"dbName":   conn.DBName,

@@ -112,6 +112,12 @@ func (m *TreeModel) Init() tea.Cmd {
 		logger.Warn("Tree Init: no driver set", nil)
 		return nil
 	}
+	
+	logger.Info("TreeModel.Init", map[string]any{
+		"dbName": m.dbName,
+		"driver": fmt.Sprintf("%T", m.driver),
+	})
+	
 	if m.dbName != "" {
 		logger.Info("Tree Init: loading tables for specific database", map[string]any{"database": m.dbName})
 		return func() tea.Msg {
