@@ -8,10 +8,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/jorgerojas26/lazysql/app"
-	"github.com/jorgerojas26/lazysql/drivers"
-	"github.com/jorgerojas26/lazysql/helpers/logger"
-	"github.com/jorgerojas26/lazysql/models"
+	"github.com/itisbryan/oh-my-lazysql/app"
+	"github.com/itisbryan/oh-my-lazysql/drivers"
+	"github.com/itisbryan/oh-my-lazysql/helpers/logger"
+	"github.com/itisbryan/oh-my-lazysql/models"
 )
 
 type HomeModel struct {
@@ -33,6 +33,9 @@ type HomeModel struct {
 
 	navStack       []navigationEntry
 	loadingRecords bool
+
+	showPalette      bool
+	paletteSelectedIdx int
 }
 
 type navigationEntry struct {
@@ -127,7 +130,11 @@ func NewHomeModel(data any) *HomeModel {
 }
 
 func (m *HomeModel) Init() tea.Cmd {
-	return m.tree.Init()
+	return tea.Batch(
+		m.tree.Init(),
+		m.results.Init(),
+		m.editor.Init(),
+	)
 }
 
 func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -136,10 +143,34 @@ func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 	case tea.KeyMsg:
+		if m.showPalette {
+			if msg.Type == tea.KeyEsc {
+				m.showPalette = false
+				m.paletteSelectedIdx = 0
+				return m, nil
+			}
+			if msg.Type == tea.KeyEnter {
+				m.showPalette = false
+				theme := AvailableThemes()[m.paletteSelectedIdx]
+				m.results.status = fmt.Sprintf("colorscheme %s", ApplyTheme(theme))
+				m.paletteSelectedIdx = 0
+				return m, nil
+			}
+			if msg.String() == "tab" {
+				m.paletteSelectedIdx = (m.paletteSelectedIdx + 1) % len(AvailableThemes())
+				return m, nil
+			}
+			return m, nil
+		}
 		if msg.String() == "ctrl+p" {
 			return m, func() tea.Msg {
 				return ScreenChangeMsg{Screen: ScreenConnectionList, Data: nil}
 			}
+		}
+		if msg.String() == ":" {
+			m.showPalette = true
+			m.paletteSelectedIdx = 0
+			return m, nil
 		}
 		if msg.String() == "[" {
 			if cmd := m.navigateBack(); cmd != nil {
@@ -208,7 +239,7 @@ func (m *HomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			if m.focus == "tree" {
 				nodeType, database, schema, name := m.tree.SelectedNode()
-				if nodeType == NodeTypeTable {
+				if nodeType == NodeTypeTable || nodeType == NodeTypeView || nodeType == NodeTypeMaterializedView {
 					m.openTable(database, schema, name, "")
 					m.setFocus("results")
 					m.loadingRecords = true
@@ -952,6 +983,87 @@ func (m *HomeModel) View() string {
 	if m.showSidebar {
 		mainContent = lipgloss.JoinHorizontal(lipgloss.Top, treePanel, rightPanel)
 	}
+
+	
+	// Overlay palette if active
+	if m.showPalette {
+		availableThemes := AvailableThemes()
+		boxW := 44
+
+		fullLine := lipgloss.NewStyle().Background(BackgroundColor).Width(m.width).Render("")
+
+		var themeLines []string
+		for i, name := range availableThemes {
+			palette := themes[name]
+
+			swatch := lipgloss.NewStyle().Background(BackgroundColor).Foreground(lipgloss.Color(palette.Accent)).Render("●") +
+				lipgloss.NewStyle().Background(BackgroundColor).Foreground(lipgloss.Color(palette.Green)).Render("●") +
+				lipgloss.NewStyle().Background(BackgroundColor).Foreground(lipgloss.Color(palette.Cyan)).Render("●") +
+				lipgloss.NewStyle().Background(BackgroundColor).Foreground(lipgloss.Color(palette.Orange)).Render("●") +
+				lipgloss.NewStyle().Background(BackgroundColor).Foreground(lipgloss.Color(palette.Purple)).Render("●")
+
+			if i == m.paletteSelectedIdx {
+				marker := lipgloss.NewStyle().Background(BackgroundColor).Foreground(AccentColor).Bold(true).Render("▶")
+				label := lipgloss.NewStyle().Background(BackgroundColor).Foreground(PrimaryTextColor).Bold(true).Render(name)
+				line := lipgloss.NewStyle().Background(BackgroundColor).Width(boxW).Inline(true).Render(fmt.Sprintf("%s  %-16s %s", marker, label, swatch))
+				themeLines = append(themeLines, line)
+			} else {
+				marker := lipgloss.NewStyle().Background(BackgroundColor).Foreground(MutedTextColor).Render(" ")
+				label := lipgloss.NewStyle().Background(BackgroundColor).Foreground(MutedTextColor).Render(name)
+				line := lipgloss.NewStyle().Background(BackgroundColor).Width(boxW).Inline(true).Render(fmt.Sprintf("%s  %-16s %s", marker, label, swatch))
+				themeLines = append(themeLines, line)
+			}
+		}
+
+		headline := lipgloss.NewStyle().
+			Background(BackgroundColor).
+			Foreground(AccentColor).
+			Bold(true).
+			Width(boxW).Inline(true).
+			Render(" COLORSCHEME")
+
+		blankBoxLine := lipgloss.NewStyle().Background(BackgroundColor).Width(boxW).Render(" ")
+
+		hint := lipgloss.NewStyle().
+			Background(BackgroundColor).
+			Foreground(MutedTextColor).
+			Width(boxW).Inline(true).
+			Render(" Tab: cycle  Enter: apply  Esc: cancel")
+
+		boxContent := headline + "\n" +
+			blankBoxLine + "\n" +
+			strings.Join(themeLines, "\n") + "\n" +
+			blankBoxLine + "\n" +
+			hint
+
+		box := lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderBackground(BackgroundColor).
+			BorderForeground(BorderColor).
+			Background(BackgroundColor).
+			Padding(0, 1).
+			Render(boxContent)
+
+		// Build a full-screen overlay with opaque background on every line
+		boxHeight := lipgloss.Height(box)
+		topPad := (m.height - boxHeight) / 2
+		if topPad < 0 {
+			topPad = 0
+		}
+		botPad := m.height - boxHeight - topPad
+
+		var overlayLines []string
+		for i := 0; i < topPad; i++ {
+			overlayLines = append(overlayLines, fullLine)
+		}
+		overlayLines = append(overlayLines, box)
+		for i := 0; i < botPad-1; i++ {
+			overlayLines = append(overlayLines, fullLine)
+		}
+
+		mainContent = strings.Join(overlayLines, "\n")
+	}
+
 
 	connName := m.connection.Name
 	if m.connection.DBName != "" {

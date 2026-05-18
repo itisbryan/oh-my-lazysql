@@ -10,10 +10,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/jorgerojas26/lazysql/app"
-	"github.com/jorgerojas26/lazysql/drivers"
-	"github.com/jorgerojas26/lazysql/helpers/logger"
-	"github.com/jorgerojas26/lazysql/models"
+	"github.com/itisbryan/oh-my-lazysql/app"
+	"github.com/itisbryan/oh-my-lazysql/drivers"
+	"github.com/itisbryan/oh-my-lazysql/helpers/logger"
+	"github.com/itisbryan/oh-my-lazysql/models"
 )
 
 var providers = []string{"MySQL", "PostgreSQL", "SQLite", "MSSQL"}
@@ -199,6 +199,7 @@ type ConnectionFormModel struct {
 	database       string
 	url            string
 	connectionMode string
+	sslEnabled     bool
 	width          int
 	height         int
 	status         string
@@ -234,6 +235,7 @@ func NewConnectionFormModel(data any) *ConnectionFormModel {
 		m.password = conn.Password
 		m.database = conn.DBName
 		m.url = conn.URL
+		m.sslEnabled = postgresSSLEnabled(conn)
 		m.hasURL = conn.URL != ""
 		m.lastParsedURL = conn.URL
 		m.lastProvider = m.provider
@@ -312,7 +314,16 @@ func (m *ConnectionFormModel) buildForm() {
 				Value(&m.url),
 		).Title("Paste a connection URL").
 			WithHideFunc(func() bool { return m.connectionMode != connectionModeURL }),
-	).WithTheme(huh.ThemeDracula())
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title("Use SSL encryption?").
+				Description("For PostgreSQL servers that require encrypted connections, this sets sslmode=require.").
+				Affirmative("SSL on").
+				Negative("SSL off").
+				Value(&m.sslEnabled),
+		).Title("Security").
+			WithHideFunc(func() bool { return normalizeProvider(m.provider) != "PostgreSQL" }),
+	).WithTheme(FormTheme())
 }
 
 func (m *ConnectionFormModel) Init() tea.Cmd {
@@ -346,6 +357,9 @@ func (m *ConnectionFormModel) syncURLFields() {
 	prov, host, port, user, pass, db := parseURL(urlValue)
 	if prov != "" {
 		m.provider = normalizeProvider(prov)
+		if m.provider == "PostgreSQL" {
+			m.sslEnabled = strings.EqualFold(parsedURLSSLMode(urlValue), "require")
+		}
 	}
 	if host != "" {
 		m.hostname = host
@@ -378,6 +392,52 @@ func suggestedConnectionName(provider, host, database string) string {
 		return fmt.Sprintf("%s on %s", normalizeProvider(provider), host)
 	}
 	return ""
+}
+
+func postgresSSLParams(enabled bool) string {
+	if enabled {
+		return "?sslmode=require"
+	}
+	return "?sslmode=disable"
+}
+
+func parsedURLSSLMode(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+	return parsed.Query().Get("sslmode")
+}
+
+func postgresSSLEnabled(conn models.Connection) bool {
+	if normalizeProvider(conn.Provider) != "PostgreSQL" {
+		return false
+	}
+	if conn.URL != "" {
+		parsed, err := url.Parse(conn.URL)
+		if err == nil {
+			return strings.EqualFold(parsed.Query().Get("sslmode"), "require")
+		}
+	}
+	return strings.Contains(strings.ToLower(conn.URLParams), "sslmode=require")
+}
+
+func setPostgresSSLMode(rawURL string, enabled bool) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Scheme == "" {
+		return rawURL
+	}
+	if normalizeProvider(parsed.Scheme) != "PostgreSQL" && parsed.Scheme != "postgresql" {
+		return rawURL
+	}
+	query := parsed.Query()
+	if enabled {
+		query.Set("sslmode", "require")
+	} else {
+		query.Set("sslmode", "disable")
+	}
+	parsed.RawQuery = query.Encode()
+	return parsed.String()
 }
 
 func (m *ConnectionFormModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -511,14 +571,18 @@ func (m *ConnectionFormModel) buildConnection() models.Connection {
 	}
 
 	conn := models.Connection{
-		Name:     strings.TrimSpace(m.name),
-		Provider: normalizeProvider(m.provider),
-		Hostname: strings.TrimSpace(m.hostname),
-		Port:     strings.TrimSpace(m.port),
-		Username: strings.TrimSpace(m.username),
-		Password: m.password,
-		DBName:   strings.TrimSpace(m.database),
-		URL:      urlValue,
+		Name:      strings.TrimSpace(m.name),
+		Provider:  normalizeProvider(m.provider),
+		Hostname:  strings.TrimSpace(m.hostname),
+		Port:      strings.TrimSpace(m.port),
+		Username:  strings.TrimSpace(m.username),
+		Password:  m.password,
+		DBName:    strings.TrimSpace(m.database),
+		URL:       urlValue,
+		URLParams: postgresSSLParams(m.sslEnabled),
+	}
+	if conn.Provider == "PostgreSQL" && conn.URL != "" {
+		conn.URL = setPostgresSSLMode(conn.URL, m.sslEnabled)
 	}
 	if conn.Name == "" {
 		conn.Name = suggestedConnectionName(conn.Provider, conn.Hostname, conn.DBName)
@@ -591,7 +655,7 @@ func (m *ConnectionFormModel) formTitle() string {
 		title = "Update connection"
 	}
 	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#BB9AF7")).
+		Foreground(PurpleColor).
 		Bold(true).
 		Render(title)
 }
@@ -601,13 +665,13 @@ func (m *ConnectionFormModel) providerBadge() string {
 	color := SecondaryTextColor
 	switch m.provider {
 	case "PostgreSQL", "postgres":
-		color = lipgloss.Color("#7DCFFF")
+		color = CyanColor
 	case "MySQL", "mysql":
-		color = lipgloss.Color("#E0AF68")
+		color = YellowColor
 	case "SQLite", "sqlite3":
-		color = lipgloss.Color("#9ECE6A")
+		color = GreenColor
 	case "MSSQL", "sqlserver":
-		color = lipgloss.Color("#BB9AF7")
+		color = PurpleColor
 	}
 	return lipgloss.NewStyle().Foreground(color).Bold(true).Render(providerOptionLabel(m.provider))
 }
@@ -697,7 +761,7 @@ func (m *ConnectionFormModel) View() string {
 	// Build header with title and provider badge
 	header := lipgloss.JoinHorizontal(lipgloss.Center,
 		lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#3B4261")).
+			Foreground(MutedBorderColor).
 			Render("────────────────"),
 		" ",
 		m.formTitle(),
@@ -707,7 +771,7 @@ func (m *ConnectionFormModel) View() string {
 			Render("["+m.providerBadge()+"]"),
 		" ",
 		lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#3B4261")).
+			Foreground(MutedBorderColor).
 			Render("────────────────"),
 	)
 
@@ -723,7 +787,7 @@ func (m *ConnectionFormModel) View() string {
 
 	// Help footer
 	helpBar := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#565F89")).
+		Foreground(MutedTextColor).
 		Render("[↑↓] Move   [Enter] Continue/Test   [Esc] Back")
 
 	// Combine everything with proper spacing
@@ -739,7 +803,7 @@ func (m *ConnectionFormModel) View() string {
 	// Wrap in a centered card with border
 	cardStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#7AA2F7")).
+		BorderForeground(BorderColor).
 		Padding(2, 5).
 		Width(m.cardWidth(formWidth)).
 		Height(m.cardHeight())

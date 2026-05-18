@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jorgerojas26/lazysql/models"
+	"github.com/itisbryan/oh-my-lazysql/models"
 )
 
 type SQLite struct {
@@ -649,7 +649,43 @@ func (db *SQLite) GetProcedures(_ string) (map[string][]string, error) {
 }
 
 func (db *SQLite) GetViews(_ string) (map[string][]string, error) {
-	return nil, errors.New("not implemented")
+	query := "SELECT name FROM sqlite_master WHERE type='view' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+	rows, err := db.Connection.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	views := make(map[string][]string)
+	for rows.Next() {
+		var viewName string
+		if err := rows.Scan(&viewName); err != nil {
+			return nil, err
+		}
+		views["main"] = append(views["main"], viewName)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return views, nil
+}
+
+func (db *SQLite) GetMaterializedViews(_ string) (map[string][]string, error) {
+	// SQLite does not support materialized views
+	return map[string][]string{}, nil
+}
+
+func (db *SQLite) GetViewDefinition(database string, name string) (string, error) {
+	if name == "" {
+		return "", errors.New("view name is required")
+	}
+	var definition string
+	err := db.Connection.QueryRow("SELECT sql FROM sqlite_master WHERE type='view' AND name = ?", name).Scan(&definition)
+	if err != nil {
+		return "", err
+	}
+	return definition, nil
 }
 
 func (db *SQLite) SupportsProgramming() bool {
@@ -665,9 +701,5 @@ func (db *SQLite) GetFunctionDefinition(_ string, _ string) (string, error) {
 }
 
 func (db *SQLite) GetProcedureDefinition(_ string, _ string) (string, error) {
-	return "", errors.New("not implemented")
-}
-
-func (db *SQLite) GetViewDefinition(_ string, _ string) (string, error) {
 	return "", errors.New("not implemented")
 }

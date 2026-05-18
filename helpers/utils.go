@@ -11,7 +11,7 @@ import (
 
 	"github.com/xo/dburl"
 
-	"github.com/jorgerojas26/lazysql/commands"
+	"github.com/itisbryan/oh-my-lazysql/commands"
 )
 
 func ParseConnectionString(url string) (*dburl.URL, error) {

@@ -7,8 +7,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/jorgerojas26/lazysql/app"
-	"github.com/jorgerojas26/lazysql/models"
+	"github.com/itisbryan/oh-my-lazysql/app"
+	"github.com/itisbryan/oh-my-lazysql/models"
 )
 
 type ConnectionListModel struct {
@@ -85,7 +85,7 @@ func (m *ConnectionListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *ConnectionListModel) View() string {
 	title := m.renderWelcomeTitle()
-	subtitle := lipgloss.NewStyle().Foreground(lipgloss.Color("#BB9AF7")).Render("database console")
+	subtitle := lipgloss.NewStyle().Foreground(PurpleColor).Render("database console")
 	bootMenu := m.renderBootMenu()
 	commandBar := m.renderCommandBar()
 
@@ -117,7 +117,7 @@ func (m *ConnectionListModel) View() string {
 
 func (m *ConnectionListModel) renderWelcomeTitle() string {
 	name := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#BB9AF7")).
+		Foreground(PurpleColor).
 		Bold(true).
 		Render("om-lazysql")
 	art := lipgloss.NewStyle().
@@ -140,7 +140,7 @@ func (m *ConnectionListModel) renderBootMenu() string {
 	}
 
 	divider := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#3B4261")).
+		Foreground(MutedBorderColor).
 		Width(innerWidth).
 		Render(strings.Repeat("─", innerWidth))
 
@@ -160,7 +160,7 @@ func (m *ConnectionListModel) renderBootMenu() string {
 			cursor = ">"
 			style = style.
 				Foreground(SecondaryTextColor).
-				Background(lipgloss.Color("#283457")).
+				Background(SelectionColor).
 				Bold(true)
 		}
 
@@ -182,14 +182,14 @@ func (m *ConnectionListModel) renderBootMenu() string {
 	if len(menuRows) == 0 {
 		emptyStyle := lipgloss.NewStyle().Padding(0, 1).Width(innerWidth)
 		menuRows = append(menuRows,
-			emptyStyle.Render(lipgloss.NewStyle().Foreground(lipgloss.Color("#F7768E")).Bold(true).Render("NO CONNECTION PROFILES FOUND")),
+			emptyStyle.Render(lipgloss.NewStyle().Foreground(RedColor).Bold(true).Render("NO CONNECTION PROFILES FOUND")),
 			emptyStyle.Render(lipgloss.NewStyle().Foreground(InverseTextColor).Render("Press N to initialize a new profile")),
 		)
 	}
 
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#7AA2F7")).
+		BorderForeground(BorderColor).
 		Padding(1, 3).
 		Render(lipgloss.JoinVertical(lipgloss.Left,
 			lipgloss.NewStyle().Foreground(TertiaryTextColor).Bold(true).Render("BOOT MENU"),
@@ -202,7 +202,7 @@ func (m *ConnectionListModel) renderBootMenu() string {
 func (m *ConnectionListModel) renderCommandBar() string {
 	return lipgloss.NewStyle().
 		Foreground(PrimaryTextColor).
-		Background(lipgloss.Color("#161B2D")).
+		Background(SurfaceColor).
 		Padding(0, 2).
 		Render(lipgloss.JoinHorizontal(lipgloss.Left,
 			KeyStyle.Render("N"), HelpStyle.Render(":new   "),
@@ -217,13 +217,13 @@ func providerBadge(provider string) string {
 	color := SecondaryTextColor
 	switch provider {
 	case "PostgreSQL", "postgres":
-		color = lipgloss.Color("#7DCFFF")
+		color = CyanColor
 	case "MySQL", "mysql":
-		color = lipgloss.Color("#E0AF68")
+		color = YellowColor
 	case "SQLite", "sqlite3":
-		color = lipgloss.Color("#9ECE6A")
+		color = GreenColor
 	case "MSSQL", "sqlserver":
-		color = lipgloss.Color("#BB9AF7")
+		color = PurpleColor
 	}
 	return lipgloss.NewStyle().Foreground(color).Bold(true).Render("[" + provider + "]")
 }

@@ -6,9 +6,9 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	cmd "github.com/jorgerojas26/lazysql/commands"
-	"github.com/jorgerojas26/lazysql/keymap"
-	"github.com/jorgerojas26/lazysql/models"
+	cmd "github.com/itisbryan/oh-my-lazysql/commands"
+	"github.com/itisbryan/oh-my-lazysql/keymap"
+	"github.com/itisbryan/oh-my-lazysql/models"
 )
 
 // local alias added for clarity purpose
@@ -111,6 +111,8 @@ var Keymaps = KeymapSystem{
 			Bind{Key: Key{Char: 'b'}, Cmd: cmd.GotoPrev, Description: "Go to previous cell"},
 			Bind{Key: Key{Char: '$'}, Cmd: cmd.GotoEnd, Description: "Go to last cell"},
 			Bind{Key: Key{Char: '0'}, Cmd: cmd.GotoStart, Description: "Go to first cell"},
+			Bind{Key: Key{Char: 'g'}, Cmd: cmd.GotoTop, Description: "Go to top row with gg"},
+			Bind{Key: Key{Char: 'G'}, Cmd: cmd.GotoBottom, Description: "Go to bottom row"},
 			Bind{Key: Key{Char: 'y'}, Cmd: cmd.Copy, Description: "Copy cell value to clipboard"},
 			Bind{Key: Key{Char: 'o'}, Cmd: cmd.AppendNewRow, Description: "Append new row"},
 			Bind{Key: Key{Char: 'O'}, Cmd: cmd.DuplicateRow, Description: "Duplicate row"},

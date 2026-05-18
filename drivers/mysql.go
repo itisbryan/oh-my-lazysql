@@ -9,7 +9,7 @@ import (
 
 	"github.com/xo/dburl"
 
-	"github.com/jorgerojas26/lazysql/models"
+	"github.com/itisbryan/oh-my-lazysql/models"
 )
 
 type MySQL struct {
@@ -629,12 +629,49 @@ func (db *MySQL) GetProcedures(_ string) (map[string][]string, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (db *MySQL) GetViews(_ string) (map[string][]string, error) {
-	return nil, errors.New("not implemented")
+func (db *MySQL) GetViews(database string) (map[string][]string, error) {
+	if database == "" {
+		return nil, errors.New("database name is required")
+	}
+
+	query := "SELECT TABLE_NAME, TABLE_SCHEMA FROM information_schema.VIEWS WHERE TABLE_SCHEMA = ?"
+	rows, err := db.Connection.Query(query, database)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	views := make(map[string][]string)
+	for rows.Next() {
+		var viewName, viewSchema string
+		if err := rows.Scan(&viewName, &viewSchema); err != nil {
+			return nil, err
+		}
+		views[viewSchema] = append(views[viewSchema], viewName)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return views, nil
 }
 
-func (db *MySQL) SupportsProgramming() bool {
-	return false
+func (db *MySQL) GetMaterializedViews(_ string) (map[string][]string, error) {
+	// MySQL does not support materialized views
+	return map[string][]string{}, nil
+}
+
+func (db *MySQL) GetViewDefinition(database, name string) (string, error) {
+	if database == "" || name == "" {
+		return "", errors.New("database and view name are required")
+	}
+
+	var definition string
+	err := db.Connection.QueryRow("SELECT VIEW_DEFINITION FROM information_schema.VIEWS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?", database, name).Scan(&definition)
+	if err != nil {
+		return "", err
+	}
+	return definition, nil
 }
 
 func (db *MySQL) UseSchemas() bool {
@@ -649,6 +686,6 @@ func (db *MySQL) GetProcedureDefinition(_ string, _ string) (string, error) {
 	return "", errors.New("not implemented")
 }
 
-func (db *MySQL) GetViewDefinition(_ string, _ string) (string, error) {
-	return "", errors.New("not implemented")
+func (db *MySQL) SupportsProgramming() bool {
+	return false
 }

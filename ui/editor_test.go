@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/jorgerojas26/lazysql/models"
+	"github.com/itisbryan/oh-my-lazysql/models"
 )
 
 func TestEditorCtrlRExecutesQuery(t *testing.T) {
@@ -278,6 +278,7 @@ func (d *fakeEditorDriver) UseSchemas() bool                                    
 func (d *fakeEditorDriver) GetFunctions(string) (map[string][]string, error)          { return nil, nil }
 func (d *fakeEditorDriver) GetProcedures(string) (map[string][]string, error)         { return nil, nil }
 func (d *fakeEditorDriver) GetViews(string) (map[string][]string, error)              { return nil, nil }
+func (d *fakeEditorDriver) GetMaterializedViews(string) (map[string][]string, error)  { return nil, nil }
 func (d *fakeEditorDriver) GetFunctionDefinition(string, string) (string, error)      { return "", nil }
 func (d *fakeEditorDriver) GetProcedureDefinition(string, string) (string, error)     { return "", nil }
 func (d *fakeEditorDriver) GetViewDefinition(string, string) (string, error)          { return "", nil }

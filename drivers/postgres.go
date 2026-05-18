@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -11,8 +12,8 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/xo/dburl"
 
-	"github.com/jorgerojas26/lazysql/helpers/logger"
-	"github.com/jorgerojas26/lazysql/models"
+	"github.com/itisbryan/oh-my-lazysql/helpers/logger"
+	"github.com/itisbryan/oh-my-lazysql/models"
 )
 
 type Postgres struct {
@@ -99,7 +100,7 @@ func (db *Postgres) GetTables(database string) (map[string][]string, error) {
 		defer conn.Close()
 	}
 
-	query := "SELECT table_name, table_schema FROM information_schema.tables WHERE table_catalog = $1"
+	query := "SELECT table_name, table_schema FROM information_schema.tables WHERE table_catalog = $1 AND table_type = 'BASE TABLE'"
 	rows, err := conn.Query(query, database)
 	if err != nil {
 		return nil, err
@@ -775,7 +776,14 @@ func (db *Postgres) connectToDatabase(database string) (*sql.DB, error) {
 		port = defaultPort
 	}
 
-	dsn := fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=disable", host, port, user, database)
+	sslMode := "disable"
+	if parsedURL, err := url.Parse(db.Urlstr); err == nil {
+		if mode := parsedURL.Query().Get("sslmode"); mode != "" {
+			sslMode = mode
+		}
+	}
+
+	dsn := fmt.Sprintf("host=%s port=%s user=%s dbname=%s sslmode=%s", host, port, user, database, sslMode)
 	if hasPassword {
 		dsn += fmt.Sprintf(" password=%s", password)
 	}
@@ -935,8 +943,95 @@ func (db *Postgres) GetProcedures(_ string) (map[string][]string, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (db *Postgres) GetViews(_ string) (map[string][]string, error) {
-	return nil, errors.New("not implemented")
+func (db *Postgres) GetViews(database string) (map[string][]string, error) {
+	if database == "" {
+		return nil, errors.New("database name is required")
+	}
+
+	conn, needsClose, err := db.connectionFor(database)
+	if err != nil {
+		return nil, err
+	}
+	if needsClose {
+		defer conn.Close()
+	}
+
+	query := "SELECT table_name, table_schema FROM information_schema.views WHERE table_catalog = $1"
+	rows, err := conn.Query(query, database)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	views := make(map[string][]string)
+	for rows.Next() {
+		var viewName, viewSchema string
+		if err := rows.Scan(&viewName, &viewSchema); err != nil {
+			return nil, err
+		}
+		views[viewSchema] = append(views[viewSchema], viewName)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return views, nil
+}
+
+func (db *Postgres) GetMaterializedViews(database string) (map[string][]string, error) {
+	if database == "" {
+		return nil, errors.New("database name is required")
+	}
+
+	conn, needsClose, err := db.connectionFor(database)
+	if err != nil {
+		return nil, err
+	}
+	if needsClose {
+		defer conn.Close()
+	}
+
+	query := "SELECT matviewname, schemaname FROM pg_matviews WHERE schemaname NOT IN ('pg_catalog', 'information_schema') ORDER BY schemaname, matviewname"
+	rows, err := conn.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	mviews := make(map[string][]string)
+	for rows.Next() {
+		var mvName, mvSchema string
+		if err := rows.Scan(&mvName, &mvSchema); err != nil {
+			return nil, err
+		}
+		mviews[mvSchema] = append(mviews[mvSchema], mvName)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return mviews, nil
+}
+
+func (db *Postgres) GetViewDefinition(database, name string) (string, error) {
+	if database == "" || name == "" {
+		return "", errors.New("database and view name are required")
+	}
+
+	conn, needsClose, err := db.connectionFor(database)
+	if err != nil {
+		return "", err
+	}
+	if needsClose {
+		defer conn.Close()
+	}
+
+	var definition string
+	err = conn.QueryRow("SELECT pg_get_viewdef($1::regclass, true)", name).Scan(&definition)
+	if err != nil {
+		return "", err
+	}
+	return definition, nil
 }
 
 func (db *Postgres) SupportsProgramming() bool {
@@ -952,9 +1047,5 @@ func (db *Postgres) GetFunctionDefinition(_ string, _ string) (string, error) {
 }
 
 func (db *Postgres) GetProcedureDefinition(_ string, _ string) (string, error) {
-	return "", errors.New("not implemented")
-}
-
-func (db *Postgres) GetViewDefinition(_ string, _ string) (string, error) {
 	return "", errors.New("not implemented")
 }

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jorgerojas26/lazysql/app"
-	"github.com/jorgerojas26/lazysql/helpers/logger"
-	"github.com/jorgerojas26/lazysql/models"
+	"github.com/itisbryan/oh-my-lazysql/app"
+	"github.com/itisbryan/oh-my-lazysql/helpers/logger"
+	"github.com/itisbryan/oh-my-lazysql/models"
 )
 
 const (

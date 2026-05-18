@@ -5,8 +5,8 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	cmd "github.com/jorgerojas26/lazysql/commands"
-	"github.com/jorgerojas26/lazysql/models"
+	cmd "github.com/itisbryan/oh-my-lazysql/commands"
+	"github.com/itisbryan/oh-my-lazysql/models"
 )
 
 func TestParseKeyString(t *testing.T) {

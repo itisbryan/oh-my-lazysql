@@ -9,7 +9,7 @@ import (
 
 	gomock "github.com/DATA-DOG/go-sqlmock"
 
-	"github.com/jorgerojas26/lazysql/models"
+	"github.com/itisbryan/oh-my-lazysql/models"
 )
 
 // mockDriver implements Driver with postgres-like formatting for unit tests.
@@ -43,6 +43,7 @@ func (m *mockDriver) UseSchemas() bool                                          
 func (m *mockDriver) GetFunctions(string) (map[string][]string, error)          { panic("not used") }
 func (m *mockDriver) GetProcedures(string) (map[string][]string, error)         { panic("not used") }
 func (m *mockDriver) GetViews(string) (map[string][]string, error)              { panic("not used") }
+func (m *mockDriver) GetMaterializedViews(string) (map[string][]string, error)  { panic("not used") }
 func (m *mockDriver) GetFunctionDefinition(string, string) (string, error)      { panic("not used") }
 func (m *mockDriver) GetProcedureDefinition(string, string) (string, error)     { panic("not used") }
 func (m *mockDriver) GetViewDefinition(string, string) (string, error)          { panic("not used") }

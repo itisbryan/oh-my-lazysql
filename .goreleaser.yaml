@@ -18,6 +18,7 @@ before:
 builds:
   - env:
       - CGO_ENABLED=0
+    binary: oh-my-lazysql
     goos:
       - linux
       - windows
@@ -45,11 +46,11 @@ changelog:
       - "^docs:"
       - "^test:"
 brews:
-  - 
-    name: lazysql
-    homepage: https://github.com/jorgerojas26/lazysql
+  -
+    name: oh-my-lazysql
+    homepage: https://github.com/itisbryan/oh-my-lazysql
     repository:
-      owner: jorgerojas26
-      name: homebrew-lazysql
+      owner: itisbryan
+      name: homebrew-tap
     test: |
-      system "#{bin}/lazysql version"
+      system "#{bin}/oh-my-lazysql version"

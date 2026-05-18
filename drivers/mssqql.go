@@ -14,8 +14,8 @@ import (
 	_ "github.com/microsoft/go-mssqldb/azuread"
 	"github.com/xo/dburl"
 
-	"github.com/jorgerojas26/lazysql/helpers/logger"
-	"github.com/jorgerojas26/lazysql/models"
+	"github.com/itisbryan/oh-my-lazysql/helpers/logger"
+	"github.com/itisbryan/oh-my-lazysql/models"
 )
 
 type MSSQL struct {
@@ -981,4 +981,11 @@ func (db *MSSQL) GetProcedureDefinition(database string, name string) (string, e
 
 func (db *MSSQL) GetViewDefinition(database string, name string) (string, error) {
 	return db.GetObjectDefinition(database, name)
+}
+
+func (db *MSSQL) GetMaterializedViews(database string) (map[string][]string, error) {
+	// MSSQL does not support true materialized views like PostgreSQL.
+	// It has indexed views (schema-bound tables) which are more like auto-refreshed tables.
+	// For now, return an empty map since the behavior differs significantly.
+	return map[string][]string{}, nil
 }

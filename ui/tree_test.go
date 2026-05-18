@@ -64,13 +64,31 @@ func TestTreeCtrlDAndCtrlUScrollLikeResults(t *testing.T) {
 	}
 }
 
+func TestTreeGGAndShiftGJumpToTopAndBottom(t *testing.T) {
+	model := treeWithManyTablesFixture(12)
+	model.cursor = 4
+
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+	if model.cursor != 4 {
+		t.Fatalf("expected first g to wait for second g, got %d", model.cursor)
+	}
+
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+	if model.cursor != 0 {
+		t.Fatalf("expected gg to jump to top, got %d", model.cursor)
+	}
+
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+	if model.cursor != len(model.visibleNodes())-1 {
+		t.Fatalf("expected G to jump to bottom, got %d", model.cursor)
+	}
+}
+
 func TestTreeSetTablesSortsTablesAscendingAZ(t *testing.T) {
 	model := NewTreeModel()
 	dbNode := &TreeNode{Type: NodeTypeDatabase, Name: "app", Database: "app", Expanded: true}
 
-	model.setTables(dbNode, "app", map[string][]string{
-		"public": {"zebra", "accounts", "Orders", "billing"},
-	})
+	model.setTables(dbNode, "app", map[string][]string{"public": {"zebra", "accounts", "Orders", "billing"}}, nil, nil)
 
 	got := make([]string, 0, len(dbNode.Children))
 	for _, child := range dbNode.Children {

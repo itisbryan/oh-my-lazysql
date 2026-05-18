@@ -1,7 +1,7 @@
 package drivers
 
 import (
-	"github.com/jorgerojas26/lazysql/models"
+	"github.com/itisbryan/oh-my-lazysql/models"
 )
 
 type Driver interface {
@@ -27,6 +27,7 @@ type Driver interface {
 	GetFunctions(database string) (map[string][]string, error)
 	GetProcedures(database string) (map[string][]string, error)
 	GetViews(database string) (map[string][]string, error)
+	GetMaterializedViews(database string) (map[string][]string, error)
 	GetFunctionDefinition(database string, name string) (string, error)
 	GetProcedureDefinition(database string, name string) (string, error)
 	GetViewDefinition(database string, name string) (string, error)

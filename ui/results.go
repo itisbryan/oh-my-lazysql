@@ -19,8 +19,8 @@ type ResultsModel struct {
 	width          int
 	height         int
 	status         string
-	spinnerFrame  int
-	loading       bool
+	spinnerFrame   int
+	loading        bool
 	page           int
 	pageSize       int
 	totalRows      int
@@ -47,6 +47,7 @@ type ResultsModel struct {
 	completion     CompletionState
 	sortCol        int
 	sortDir        string
+	pendingKey     string
 }
 
 type cellPosition struct {
@@ -92,7 +93,9 @@ func NewResultsModel() *ResultsModel {
 }
 
 func (m *ResultsModel) Init() tea.Cmd {
-	return nil
+	return tea.Tick(time.Second/6, func(time.Time) tea.Msg {
+		return spinnerTick{}
+	})
 }
 
 func (m *ResultsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -120,26 +123,43 @@ func (m *ResultsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		switch msg.String() {
+		case "g":
+			if m.pendingKey == "g" {
+				m.row = 0
+				m.pendingKey = ""
+			} else {
+				m.pendingKey = "g"
+			}
+		case "G":
+			if count := m.navigableRowCount(); count > 0 {
+				m.row = count - 1
+			}
+			m.pendingKey = ""
 		case "o":
+			m.pendingKey = ""
 			if m.activeTab == 0 && len(m.rows) > 0 {
 				m.showRowDetail = true
 				m.detailRow = min(max(0, m.col), max(0, len(m.columns)-1))
 			}
 		case "a":
+			m.pendingKey = ""
 			if m.activeTab == 0 && len(m.columns) > 0 {
 				m.startInsertRow()
 			}
 		case "ctrl+x":
+			m.pendingKey = ""
 			if m.activeTab == 0 && len(m.rows) > 0 && m.row >= 0 && m.row < len(m.rows) {
 				m.pendingDeletes[m.row] = true
 				m.status = fmt.Sprintf("Row %d marked for deletion. Press Ctrl+R to save or u to restore.", m.row+1)
 			}
 		case "u":
+			m.pendingKey = ""
 			if m.activeTab == 0 && len(m.rows) > 0 && m.row >= 0 && m.row < len(m.rows) {
 				delete(m.pendingDeletes, m.row)
 				m.status = fmt.Sprintf("Row %d restored", m.row+1)
 			}
 		case "s":
+			m.pendingKey = ""
 			if m.activeTab == 0 && len(m.columns) > 0 && m.col >= 0 && m.col < len(m.columns) {
 				if m.sortCol == m.col {
 					if m.sortDir == "ASC" {
@@ -155,65 +175,98 @@ func (m *ResultsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, func() tea.Msg { return sortAppliedMsg{} }
 			}
 		case "enter":
+			m.pendingKey = ""
 			m.startCellEdit()
 		case "/":
+			m.pendingKey = ""
 			m.filterEditing = true
 			m.filterInput = m.whereFilter
 			m.completion.Update(m.filterInput)
 		case "[":
+			m.pendingKey = ""
 			if m.activeTab > 0 {
 				m.activeTab--
 			}
 		case "]":
+			m.pendingKey = ""
 			if m.activeTab < len(tabNames)-1 {
 				m.activeTab++
 			}
 		case "1":
+			m.pendingKey = ""
 			m.activeTab = 0
 		case "2":
+			m.pendingKey = ""
 			m.activeTab = 1
 		case "3":
+			m.pendingKey = ""
 			m.activeTab = 2
 		case "4":
+			m.pendingKey = ""
 			m.activeTab = 3
 		case "5":
+			m.pendingKey = ""
 			m.activeTab = 4
 		case "up", "k":
+			m.pendingKey = ""
 			if m.row > 0 {
 				m.row--
 			}
 		case "down", "j":
-			if m.row < len(m.rows)-1 {
+			m.pendingKey = ""
+			if m.row < m.navigableRowCount()-1 {
 				m.row++
 			}
 		case "left", "h":
+			m.pendingKey = ""
 			if m.col > 0 {
 				m.col--
 			}
 		case "right", "l":
+			m.pendingKey = ""
 			if m.col < len(m.columns)-1 {
 				m.col++
 			}
 		case "e":
+			m.pendingKey = ""
 			if len(m.columns) > 0 {
 				m.col = (m.col + 1) % len(m.columns)
 			}
+		case "b":
+			m.pendingKey = ""
+			if len(m.columns) > 0 {
+				m.col = (m.col - 1 + len(m.columns)) % len(m.columns)
+			}
 		case "pgup":
+			m.pendingKey = ""
 			m.row = max(0, m.row-10)
 		case "pgdown":
-			if len(m.rows) > 0 {
-				m.row = min(len(m.rows)-1, m.row+10)
+			m.pendingKey = ""
+			if count := m.navigableRowCount(); count > 0 {
+				m.row = min(count-1, m.row+10)
 			}
 		case "ctrl+d":
-			if len(m.rows) > 0 {
-				m.row = min(len(m.rows)-1, m.row+5)
+			m.pendingKey = ""
+			if count := m.navigableRowCount(); count > 0 {
+				m.row = min(count-1, m.row+5)
 			}
 		case "ctrl+u":
+			m.pendingKey = ""
 			m.row = max(0, m.row-5)
 		}
 	}
 	m.clampSelection()
 	return m, cmd
+}
+
+func (m *ResultsModel) navigableRowCount() int {
+	if m.activeTab == 0 {
+		return len(m.rows)
+	}
+	if m.activeTab >= 0 && m.activeTab < len(m.metadata) {
+		return len(m.metadata[m.activeTab])
+	}
+	return 0
 }
 
 func (m *ResultsModel) updateFilterInput(msg tea.KeyMsg) tea.Cmd {
@@ -575,16 +628,10 @@ func (m *ResultsModel) startInsertRow() {
 }
 
 func (m *ResultsModel) View() string {
-	if len(m.columns) == 0 {
+	if len(m.columns) == 0 && !m.loading {
 		return lipgloss.NewStyle().
 			Foreground(InverseTextColor).
 			Render("Select a table to load records")
-	}
-
-	if m.loading {
-		return lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#565F89")).
-			Render(spinnerFrames[m.spinnerFrame] + " Loading records...")
 	}
 
 	pagination := "0 rows"
@@ -603,23 +650,33 @@ func (m *ResultsModel) View() string {
 	}
 
 	var content string
-	switch m.activeTab {
-	case 0:
-		if m.showRowDetail {
-			content = m.renderRowDetail(max(1, m.width-2), contentHeight)
-		} else {
-			content = m.renderGrid(max(1, m.width-2), contentHeight)
-		}
-	default:
-		data := m.metadata[m.activeTab]
-		if len(data) == 0 {
-			content = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#565F89")).
-				Width(max(1, m.width-2)).
-				Height(contentHeight).
-				Render("Loading " + tabNames[m.activeTab] + "...")
-		} else {
-			content = m.renderMetadataGrid(data, max(1, m.width-2), contentHeight)
+	if m.loading {
+		loadingBar := indeterminateProgressBar(max(14, min(28, m.width/3)), m.spinnerFrame, AccentColor, SelectionColor)
+		content = lipgloss.NewStyle().
+			Foreground(AccentColor).
+			Width(max(1, m.width-2)).
+			Height(contentHeight).
+			Align(lipgloss.Center, lipgloss.Center).
+			Render(spinnerFrames[m.spinnerFrame] + " Loading rows…\n\n" + loadingBar)
+	} else {
+		switch m.activeTab {
+		case 0:
+			if m.showRowDetail {
+				content = m.renderRowDetail(max(1, m.width-2), contentHeight)
+			} else {
+				content = m.renderGrid(max(1, m.width-2), contentHeight)
+			}
+		default:
+			data := m.metadata[m.activeTab]
+			if len(data) == 0 {
+				content = lipgloss.NewStyle().
+					Foreground(MutedTextColor).
+					Width(max(1, m.width-2)).
+					Height(contentHeight).
+					Render("Loading " + tabNames[m.activeTab] + "...")
+			} else {
+				content = m.renderMetadataGrid(data, max(1, m.width-2), contentHeight)
+			}
 		}
 	}
 
@@ -636,23 +693,23 @@ func (m *ResultsModel) renderFilterBar() string {
 	activeBadge := ""
 	if m.whereFilter != "" && !m.filterEditing {
 		activeBadge = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#1A1B26")).
-			Background(lipgloss.Color("#FF9E64")).
+			Foreground(InverseTextColor).
+			Background(OrangeColor).
 			Bold(true).
 			Padding(0, 1).
 			Render("ACTIVE")
 	}
 
 	badge := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#7AA2F7")).
-		Background(lipgloss.Color("#1F2335")).
+		Foreground(AccentColor).
+		Background(OverlayColor).
 		Bold(true).
 		Padding(0, 1).
 		Render("WHERE")
 
 	placeholder := "filter rows by SQL predicate"
 	fieldText := placeholder
-	fieldColor := lipgloss.Color("#565F89")
+	fieldColor := MutedTextColor
 	hintText := "Enter Apply"
 	if m.filterEditing {
 		fieldText = highlightSQL(m.filterInput) + "▌"
@@ -670,7 +727,7 @@ func (m *ResultsModel) renderFilterBar() string {
 	}
 
 	hint := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#565F89")).
+		Foreground(MutedTextColor).
 		Render(hintText)
 
 	badges := badge
@@ -685,7 +742,7 @@ func (m *ResultsModel) renderFilterBar() string {
 	if m.filterEditing {
 		ghostSuffix = m.completion.GhostSuffix(m.filterInput)
 	}
-	ghostStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#565F89"))
+	ghostStyle := lipgloss.NewStyle().Foreground(MutedTextColor)
 
 	if m.filterEditing && (ghostSuffix != "" || m.completion.Visible) {
 		renderedText := fieldText
@@ -697,7 +754,7 @@ func (m *ResultsModel) renderFilterBar() string {
 		}
 		field := lipgloss.NewStyle().
 			Foreground(fieldColor).
-			Background(lipgloss.Color("#151A2B")).
+			Background(SurfaceAltColor).
 			Padding(0, 1).
 			Width(fieldWidth).
 			Render(renderedText)
@@ -705,7 +762,7 @@ func (m *ResultsModel) renderFilterBar() string {
 		spacer := strings.Repeat(" ", max(2, m.width-lipgloss.Width(left)-lipgloss.Width(hint)-6))
 
 		filterBar := lipgloss.NewStyle().
-			Background(lipgloss.Color("#161B2D")).
+			Background(SurfaceColor).
 			Padding(0, 1, 0, 2).
 			Width(max(1, m.width-2)).
 			Render(left + spacer + hint)
@@ -723,7 +780,7 @@ func (m *ResultsModel) renderFilterBar() string {
 	suggestionText := ""
 	field := lipgloss.NewStyle().
 		Foreground(fieldColor).
-		Background(lipgloss.Color("#151A2B")).
+		Background(SurfaceAltColor).
 		Padding(0, 1).
 		Width(fieldWidth).
 		Render(truncateDisplay(fieldText, fieldWidth) + suggestionText)
@@ -732,7 +789,7 @@ func (m *ResultsModel) renderFilterBar() string {
 	spacer := strings.Repeat(" ", max(2, m.width-lipgloss.Width(left)-lipgloss.Width(hint)-6))
 
 	return lipgloss.NewStyle().
-		Background(lipgloss.Color("#161B2D")).
+		Background(SurfaceColor).
 		Padding(1, 2).
 		Width(max(1, m.width-2)).
 		Render(left + spacer + hint)
@@ -741,7 +798,7 @@ func (m *ResultsModel) renderFilterBar() string {
 func (m *ResultsModel) renderTabs() string {
 	var parts []string
 	divider := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#3B4261")).
+		Foreground(MutedBorderColor).
 		Render("│")
 	for i, name := range tabNames {
 		if i > 0 {
@@ -751,34 +808,34 @@ func (m *ResultsModel) renderTabs() string {
 		if i == m.activeTab {
 			label = "▸ " + label
 			parts = append(parts, lipgloss.NewStyle().
-				Background(lipgloss.Color("#20304F")).
-				Foreground(lipgloss.Color("#7DCFFF")).
+				Background(SelectionColor).
+				Foreground(CyanColor).
 				Bold(true).
 				Padding(0, 1).
 				Render(label))
 		} else {
 			parts = append(parts, lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#BB9AF7")).
+				Foreground(PurpleColor).
 				Padding(0, 1).
 				Render(label))
 		}
 	}
 	tabList := lipgloss.JoinHorizontal(lipgloss.Left, parts...)
 	hint := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#565F89")).
-		Render("[/] tabs  1-5 jump")
+		Foreground(MutedTextColor).
+		Render("[/] tabs  1-5 jump  </> pages")
 	spacer := strings.Repeat(" ", max(1, m.width-lipgloss.Width(tabList)-lipgloss.Width(hint)-4))
 
 	return lipgloss.NewStyle().
-		Background(lipgloss.Color("#1A1B26")).
+		Background(BackgroundColor).
 		Padding(0, 1).
 		Width(max(1, m.width-2)).
 		Render(tabList + spacer + hint)
 }
 
 func (m *ResultsModel) renderStatusline(pagination string) string {
-	modeBg := lipgloss.Color("#7AA2F7")
-	modeFg := lipgloss.Color("#1A1B26")
+	modeBg := AccentColor
+	modeFg := InverseTextColor
 
 	mode := lipgloss.NewStyle().
 		Background(modeBg).
@@ -789,38 +846,43 @@ func (m *ResultsModel) renderStatusline(pagination string) string {
 
 	var info []string
 
-	sep := lipgloss.NewStyle().Foreground(lipgloss.Color("#3B4261")).Render(" │ ")
+	sep := lipgloss.NewStyle().Foreground(MutedBorderColor).Render(" │ ")
 
 	if m.col < len(m.columns) {
 		col := m.columns[m.col]
 		if col.Type != "" {
-			info = append(info, lipgloss.NewStyle().Foreground(lipgloss.Color("#7DCFFF")).Render(abbrevType(col.Type)))
+			info = append(info, lipgloss.NewStyle().Foreground(CyanColor).Render(abbrevType(col.Type)))
 		}
 		if col.IsPK {
-			info = append(info, lipgloss.NewStyle().Foreground(lipgloss.Color("#FF9E64")).Render("PK"))
+			info = append(info, lipgloss.NewStyle().Foreground(OrangeColor).Render("PK"))
 		}
 		if col.IsFK {
-			info = append(info, lipgloss.NewStyle().Foreground(lipgloss.Color("#9ECE6A")).Render("FK"))
+			info = append(info, lipgloss.NewStyle().Foreground(GreenColor).Render("FK"))
 		}
 	}
 
 	pos := fmt.Sprintf("R%d:C%d", m.row+1, m.col+1)
-	info = append(info, lipgloss.NewStyle().Foreground(lipgloss.Color("#C0CAF5")).Render(pos))
+	info = append(info, lipgloss.NewStyle().Foreground(PrimaryTextColor).Render(pos))
 
 	pending := m.pendingChangeCount()
 	if pending > 0 {
-		info = append(info, lipgloss.NewStyle().Foreground(lipgloss.Color("#FF9E64")).Render(fmt.Sprintf("%d pending", pending)))
+		info = append(info, lipgloss.NewStyle().Foreground(OrangeColor).Render(fmt.Sprintf("%d pending", pending)))
 	}
 
 	if m.sortCol >= 0 && m.sortCol < len(m.columns) && m.sortDir != "" {
 		sortInfo := fmt.Sprintf("↕ %s %s", m.columns[m.sortCol].Title, m.sortDir)
-		info = append(info, lipgloss.NewStyle().Foreground(lipgloss.Color("#BB9AF7")).Render(sortInfo))
+		info = append(info, lipgloss.NewStyle().Foreground(PurpleColor).Render(sortInfo))
 	}
 
 	leftStr := mode + sep + strings.Join(info, sep)
 
 	rightParts := []string{
-		lipgloss.NewStyle().Foreground(lipgloss.Color("#7AA2F7")).Render(pagination),
+		lipgloss.NewStyle().Foreground(AccentColor).Render(pagination),
+	}
+	if m.loading {
+		loadingLabel := lipgloss.NewStyle().Foreground(AccentColor).Bold(true).Render(spinnerFrames[m.spinnerFrame] + " Loading rows")
+		loadingBar := indeterminateProgressBar(max(12, min(22, m.width/5)), m.spinnerFrame, AccentColor, SelectionColor)
+		rightParts = []string{loadingLabel, "  ", loadingBar}
 	}
 	rightStr := lipgloss.JoinHorizontal(lipgloss.Left, rightParts...)
 
@@ -828,7 +890,7 @@ func (m *ResultsModel) renderStatusline(pagination string) string {
 	spacer := strings.Repeat(" ", spacerWidth)
 
 	return lipgloss.NewStyle().
-		Background(lipgloss.Color("#1A1B26")).
+		Background(BackgroundColor).
 		Padding(0, 1).
 		Width(max(1, m.width-2)).
 		Render(leftStr + spacer + rightStr)
@@ -864,8 +926,8 @@ func (m *ResultsModel) renderGrid(width, height int) string {
 	}
 	endRow := min(len(m.rows), startRow+visibleRowCount)
 
-	divider := lipgloss.NewStyle().Foreground(lipgloss.Color("#3B4261")).Render("│")
-	dimmedDivider := lipgloss.NewStyle().Foreground(dimColor).Render("│")
+	divider := lipgloss.NewStyle().Foreground(MutedBorderColor).Render("│")
+	dimmedDivider := lipgloss.NewStyle().Foreground(dimColor()).Render("│")
 
 	header := m.renderGridHeader(visibleCols, rowNumberWidth)
 
@@ -873,9 +935,9 @@ func (m *ResultsModel) renderGrid(width, height int) string {
 	for rowIdx := startRow; rowIdx < endRow; rowIdx++ {
 		isActiveRow := rowIdx == m.row
 		isDeleted := m.pendingDeletes[rowIdx]
-		sepStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#3B4261"))
+		sepStyle := lipgloss.NewStyle().Foreground(MutedBorderColor)
 		if !isActiveRow {
-			sepStyle = lipgloss.NewStyle().Foreground(dimColor)
+			sepStyle = lipgloss.NewStyle().Foreground(dimColor())
 		}
 		sepParts := []string{sepStyle.Render(strings.Repeat("─", rowNumberWidth))}
 		for _, colIdx := range visibleCols {
@@ -887,15 +949,15 @@ func (m *ResultsModel) renderGrid(width, height int) string {
 		row := m.rows[rowIdx]
 		rowStyle := lipgloss.NewStyle()
 		if !isDeleted && rowIdx%2 == 1 {
-			rowStyle = rowStyle.Background(lipgloss.Color("#111827"))
+			rowStyle = rowStyle.Background(SurfaceAltColor)
 		}
 		rowNumberStyle := lipgloss.NewStyle().Width(rowNumberWidth)
 		if isDeleted {
-			rowNumberStyle = rowNumberStyle.Foreground(lipgloss.Color("#F7768E")).Bold(true)
+			rowNumberStyle = rowNumberStyle.Foreground(RedColor).Bold(true)
 		} else if isActiveRow {
 			rowNumberStyle = rowNumberStyle.Foreground(SecondaryTextColor).Bold(true)
 		} else {
-			rowNumberStyle = rowNumberStyle.Foreground(lipgloss.Color("#565F89"))
+			rowNumberStyle = rowNumberStyle.Foreground(MutedTextColor)
 		}
 		rowLabel := fmt.Sprintf("%d", rowIdx+1)
 		if isDeleted {
@@ -942,7 +1004,7 @@ func (m *ResultsModel) renderGrid(width, height int) string {
 	}
 
 	if m.insertingRow && m.insertRow != nil {
-		sepStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#9ECE6A"))
+		sepStyle := lipgloss.NewStyle().Foreground(GreenColor)
 		sepParts := []string{sepStyle.Render(strings.Repeat("─", rowNumberWidth))}
 		for _, colIdx := range visibleCols {
 			sepParts = append(sepParts, sepStyle.Render("┼"), sepStyle.Render(strings.Repeat("─", m.columns[colIdx].Width)))
@@ -950,7 +1012,7 @@ func (m *ResultsModel) renderGrid(width, height int) string {
 		sepParts = append(sepParts, sepStyle.Render("┼"))
 		lines = append(lines, lipgloss.JoinHorizontal(lipgloss.Left, sepParts...))
 
-		rowNumberStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#9ECE6A")).Bold(true).Width(rowNumberWidth)
+		rowNumberStyle := lipgloss.NewStyle().Foreground(GreenColor).Bold(true).Width(rowNumberWidth)
 		cells := []string{rowNumberStyle.Render("+NEW")}
 		for _, colIdx := range visibleCols {
 			value := ""
@@ -967,13 +1029,13 @@ func (m *ResultsModel) renderGrid(width, height int) string {
 				cells = append(cells, divider, renderInsertCell(value, colWidth))
 			}
 		}
-		insertStyle := lipgloss.NewStyle().Background(lipgloss.Color("#162820"))
+		insertStyle := lipgloss.NewStyle().Background(SurfaceColor)
 		lines = append(lines, insertStyle.Render(lipgloss.JoinHorizontal(lipgloss.Left, cells...)))
 	}
 
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#3B4261")).
+		BorderForeground(MutedBorderColor).
 		Height(height).
 		Width(max(1, width)).
 		Render(lipgloss.JoinVertical(lipgloss.Left, lines...))
@@ -1020,10 +1082,10 @@ func (m *ResultsModel) renderMetadataGrid(data [][]string, width, height int) st
 			break
 		}
 		hdrCells = append(hdrCells,
-			lipgloss.NewStyle().Foreground(lipgloss.Color("#7AA2F7")).Background(lipgloss.Color("#1F2335")).Width(w).Bold(true).Render(" "+headers[i]),
+			lipgloss.NewStyle().Foreground(AccentColor).Background(OverlayColor).Width(w).Bold(true).Render(" "+headers[i]),
 		)
 		sepParts = append(sepParts,
-			lipgloss.NewStyle().Foreground(lipgloss.Color("#3B4261")).Render(strings.Repeat("─", w)),
+			lipgloss.NewStyle().Foreground(MutedBorderColor).Render(strings.Repeat("─", w)),
 		)
 	}
 	lines := []string{
@@ -1034,7 +1096,7 @@ func (m *ResultsModel) renderMetadataGrid(data [][]string, width, height int) st
 	for rowIdx, row := range rows {
 		rowStyle := lipgloss.NewStyle()
 		if rowIdx%2 == 1 {
-			rowStyle = rowStyle.Background(lipgloss.Color("#111827"))
+			rowStyle = rowStyle.Background(SurfaceAltColor)
 		}
 		cells := []string{}
 		for _, i := range visibleCols {
@@ -1053,7 +1115,7 @@ func (m *ResultsModel) renderMetadataGrid(data [][]string, width, height int) st
 
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#3B4261")).
+		BorderForeground(MutedBorderColor).
 		Height(height).
 		Width(max(1, width)).
 		Render(lipgloss.JoinVertical(lipgloss.Left, lines...))
@@ -1075,16 +1137,16 @@ func (m *ResultsModel) renderRowDetail(width, height int) string {
 	if count := m.pendingChangeCount(); count > 0 {
 		metaText += fmt.Sprintf(" · %d pending", count)
 	}
-	headerLeft := lipgloss.NewStyle().Foreground(lipgloss.Color("#1A1B26")).Background(SecondaryTextColor).Bold(true).Padding(0, 1).Render(titleText)
-	headerRight := lipgloss.NewStyle().Foreground(lipgloss.Color("#565F89")).Render(metaText)
+	headerLeft := lipgloss.NewStyle().Foreground(InverseTextColor).Background(SecondaryTextColor).Bold(true).Padding(0, 1).Render(titleText)
+	headerRight := lipgloss.NewStyle().Foreground(MutedTextColor).Render(metaText)
 	headerGap := strings.Repeat(" ", max(1, width-lipgloss.Width(headerLeft)-lipgloss.Width(headerRight)-6))
 
 	typeWidth := 12
 	valueWidth := max(12, width-nameWidth-typeWidth-12)
 	columnHeader := lipgloss.JoinHorizontal(lipgloss.Left,
-		lipgloss.NewStyle().Foreground(lipgloss.Color("#565F89")).Width(nameWidth+2).Bold(true).Render("FIELD"),
-		lipgloss.NewStyle().Foreground(lipgloss.Color("#565F89")).Width(typeWidth).Bold(true).Render("TYPE"),
-		lipgloss.NewStyle().Foreground(lipgloss.Color("#565F89")).Width(valueWidth).Bold(true).Render("VALUE"),
+		lipgloss.NewStyle().Foreground(MutedTextColor).Width(nameWidth+2).Bold(true).Render("FIELD"),
+		lipgloss.NewStyle().Foreground(MutedTextColor).Width(typeWidth).Bold(true).Render("TYPE"),
+		lipgloss.NewStyle().Foreground(MutedTextColor).Width(valueWidth).Bold(true).Render("VALUE"),
 	)
 
 	lines := []string{
@@ -1102,7 +1164,7 @@ func (m *ResultsModel) renderRowDetail(width, height int) string {
 		if _, dirty := m.pendingEdits[cellPosition{row: m.row, col: i}]; dirty {
 			nameText = "*" + nameText
 		}
-		name := lipgloss.NewStyle().Foreground(lipgloss.Color("#7AA2F7")).Width(nameWidth).Render(truncateDisplay(nameText, nameWidth))
+		name := lipgloss.NewStyle().Foreground(AccentColor).Width(nameWidth).Render(truncateDisplay(nameText, nameWidth))
 		badges := lipgloss.NewStyle().Width(typeWidth).Render(truncateDisplay(rowDetailBadges(col), typeWidth))
 		valueStyle := lipgloss.NewStyle().Foreground(PrimaryTextColor)
 		if special {
@@ -1115,7 +1177,7 @@ func (m *ResultsModel) renderRowDetail(width, height int) string {
 			valueStyle = lipgloss.NewStyle().Foreground(PrimaryTextColor).Bold(true)
 		} else if _, dirty := m.pendingEdits[cellPosition{row: m.row, col: i}]; dirty {
 			valueText = truncateDisplay("*"+displayValue, availableValueWidth)
-			valueStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF9E64"))
+			valueStyle = lipgloss.NewStyle().Foreground(OrangeColor)
 		}
 		rail := " "
 		if i == m.detailRow {
@@ -1131,7 +1193,7 @@ func (m *ResultsModel) renderRowDetail(width, height int) string {
 		)
 		if i == m.detailRow {
 			pad := max(0, width-lipgloss.Width(line)-4)
-			line = lipgloss.NewStyle().Background(lipgloss.Color("#283457")).Render(line + strings.Repeat(" ", pad))
+			line = lipgloss.NewStyle().Background(SelectionColor).Render(line + strings.Repeat(" ", pad))
 		}
 		lines = append(lines, line)
 		if len(lines) >= height-3 {
@@ -1148,7 +1210,7 @@ func (m *ResultsModel) renderRowDetail(width, height int) string {
 
 	return lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#3B4261")).
+		BorderForeground(MutedBorderColor).
 		Padding(0, 1).
 		Height(height).
 		Width(max(1, width)).
@@ -1176,18 +1238,18 @@ func renderDetailFooter(text string) string {
 	parts := strings.Split(text, "  ")
 	styled := make([]string, 0, len(parts))
 	for _, part := range parts {
-		styled = append(styled, lipgloss.NewStyle().Foreground(lipgloss.Color("#565F89")).Render(part))
+		styled = append(styled, lipgloss.NewStyle().Foreground(MutedTextColor).Render(part))
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Left, styled...)
 }
 
 func (m *ResultsModel) renderGridHeader(visibleCols []int, rowNumberWidth int) string {
 	_, rowNumberBackground, rowNumberSeparator := headerColorsForDistance(2)
-	headerDivider := lipgloss.NewStyle().Foreground(lipgloss.Color(rowNumberSeparator)).Render("┼")
+	headerDivider := lipgloss.NewStyle().Foreground(rowNumberSeparator).Render("┼")
 	headerCells := []string{
 		lipgloss.NewStyle().
 			Foreground(InverseTextColor).
-			Background(lipgloss.Color(rowNumberBackground)).
+			Background(rowNumberBackground).
 			Width(rowNumberWidth).
 			Height(2).
 			Bold(true).
@@ -1201,7 +1263,7 @@ func (m *ResultsModel) renderGridHeader(visibleCols []int, rowNumberWidth int) s
 			distance = -distance
 		}
 		foreground, background, separator := headerColorsForDistance(distance)
-		headerDivider = lipgloss.NewStyle().Foreground(lipgloss.Color(separator)).Render("┼")
+		headerDivider = lipgloss.NewStyle().Foreground(separator).Render("┼")
 
 		keyIcon := ""
 		if col.IsPK {
@@ -1235,14 +1297,14 @@ func (m *ResultsModel) renderGridHeader(visibleCols []int, rowNumberWidth int) s
 		typeLine := ""
 		if typeLabel != "" {
 			typeLine = "\n" + lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#565F89")).
-				Background(lipgloss.Color(background)).
+				Foreground(MutedTextColor).
+				Background(background).
 				Render(truncateDisplay("  "+typeLabel, col.Width))
 		}
 
 		headerStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color(foreground)).
-			Background(lipgloss.Color(background)).
+			Foreground(foreground).
+			Background(background).
 			Width(col.Width).
 			Bold(true)
 
@@ -1255,21 +1317,21 @@ func (m *ResultsModel) renderGridHeader(visibleCols []int, rowNumberWidth int) s
 
 	return lipgloss.NewStyle().
 		Foreground(PrimaryTextColor).
-		Background(lipgloss.Color(rowNumberBackground)).
+		Background(rowNumberBackground).
 		Render(lipgloss.JoinHorizontal(lipgloss.Left, headerCells...))
 }
 
 func headerColorsForDistance(distance int) (foreground, background, separator lipgloss.Color) {
 	if distance == 0 {
-		return SecondaryTextColor, lipgloss.Color("#283457"), SecondaryTextColor
+		return SecondaryTextColor, SelectionColor, SecondaryTextColor
 	}
 	if distance == 1 {
-		return lipgloss.Color("#BB9AF7"), lipgloss.Color("#1F2335"), lipgloss.Color("#7DCFFF")
+		return PurpleColor, OverlayColor, CyanColor
 	}
-	return PrimaryTextColor, lipgloss.Color("#1A1F33"), lipgloss.Color("#565F89")
+	return PrimaryTextColor, BackgroundColor, MutedTextColor
 }
 
-var dimColor = lipgloss.Color("#565F89")
+func dimColor() lipgloss.Color { return MutedTextColor }
 
 var tabNames = []string{"Records", "Columns", "Constraints", "Foreign Keys", "Indexes"}
 
@@ -1278,7 +1340,7 @@ func renderPlainCell(value string, width int) string {
 }
 
 func renderDimmedCell(value string, width int) string {
-	return lipgloss.NewStyle().Foreground(dimColor).Width(width).Render(truncateDisplay(value, width))
+	return lipgloss.NewStyle().Foreground(dimColor()).Width(width).Render(truncateDisplay(value, width))
 }
 
 func renderSpecialCell(value string, width int) string {
@@ -1290,7 +1352,7 @@ func renderSpecialCell(value string, width int) string {
 
 func renderDimmedSpecialCell(value string, width int) string {
 	text := truncateDisplay(value, width)
-	styled := lipgloss.NewStyle().Foreground(dimColor).Render(text)
+	styled := lipgloss.NewStyle().Foreground(dimColor()).Render(text)
 	padding := max(0, width-lipgloss.Width(text))
 	return styled + strings.Repeat(" ", padding)
 }
@@ -1315,11 +1377,11 @@ func renderSelectedCell(value string, width int, special bool) string {
 }
 
 func renderEditingCell(value string, width int, selectAll bool) string {
-	outerStyle := lipgloss.NewStyle().Foreground(editingCellForeground()).Background(lipgloss.Color("#283457")).Width(width)
+	outerStyle := lipgloss.NewStyle().Foreground(editingCellForeground()).Background(SelectionColor).Width(width)
 	if selectAll && value != "" {
 		text := truncateDisplay(value, max(1, width-1))
 		selection := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#1A1B26")).
+			Foreground(InverseTextColor).
 			Background(TertiaryTextColor).
 			Bold(true).
 			Inline(true).
@@ -1336,25 +1398,25 @@ func editingCellForeground() lipgloss.Color {
 
 func renderDirtyCell(value string, width int) string {
 	if width <= 1 {
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("#FF9E64")).Render(truncateDisplay(value, width))
+		return lipgloss.NewStyle().Foreground(OrangeColor).Render(truncateDisplay(value, width))
 	}
 	text := truncateDisplay("*"+value, width)
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("#FF9E64")).Width(width).Render(text)
+	return lipgloss.NewStyle().Foreground(OrangeColor).Width(width).Render(text)
 }
 
 func renderDeletedCell(value string, width int, special bool) string {
 	if special {
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("#F7768E")).Width(width).Render(truncateDisplay(value, width))
+		return lipgloss.NewStyle().Foreground(RedColor).Width(width).Render(truncateDisplay(value, width))
 	}
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("#F7768E")).Width(width).Render(truncateDisplay(value, width))
+	return lipgloss.NewStyle().Foreground(RedColor).Width(width).Render(truncateDisplay(value, width))
 }
 
 func renderInsertCell(value string, width int) string {
 	_, special := formatCellValue(value)
 	if special {
-		return lipgloss.NewStyle().Foreground(lipgloss.Color("#9ECE6A")).Width(width).Render(truncateDisplay(value, width))
+		return lipgloss.NewStyle().Foreground(GreenColor).Width(width).Render(truncateDisplay(value, width))
 	}
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("#73DACA")).Width(width).Render(truncateDisplay(value, width))
+	return lipgloss.NewStyle().Foreground(CyanColor).Width(width).Render(truncateDisplay(value, width))
 }
 
 func formatCellValue(value string) (string, bool) {

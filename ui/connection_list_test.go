@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jorgerojas26/lazysql/models"
+	"github.com/itisbryan/oh-my-lazysql/models"
 )
 
 func TestConnectionListRendersRetroWelcomeScreen(t *testing.T) {

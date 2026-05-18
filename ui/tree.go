@@ -10,8 +10,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/jorgerojas26/lazysql/drivers"
-	"github.com/jorgerojas26/lazysql/helpers/logger"
+	"github.com/itisbryan/oh-my-lazysql/drivers"
+	"github.com/itisbryan/oh-my-lazysql/helpers/logger"
 )
 
 type TreeNodeType int
@@ -25,6 +25,7 @@ const (
 	NodeTypeFunction
 	NodeTypeProcedure
 	NodeTypeView
+	NodeTypeMaterializedView
 )
 
 type TreeNode struct {
@@ -58,26 +59,39 @@ type TreeModel struct {
 	searching  bool
 	search     string
 	scanPrefix string
+	pendingKey string
 }
 
 var treeIcons = map[TreeNodeType]string{
-	NodeTypeDatabase:  "󰆼",
-	NodeTypeSection:   "󰙅",
-	NodeTypeTable:     "󰓱",
-	NodeTypeColumn:    "󰋫",
-	NodeTypeFunction:  "󰊕",
-	NodeTypeProcedure: "󰡱",
-	NodeTypeView:      "󰈙",
+	NodeTypeDatabase:         "󰆼",
+	NodeTypeSection:          "󰙅",
+	NodeTypeTable:            "󰓱",
+	NodeTypeColumn:           "󰋫",
+	NodeTypeFunction:         "󰊕",
+	NodeTypeProcedure:        "󰡱",
+	NodeTypeView:             "󰈙",
+	NodeTypeMaterializedView: "󰑓",
 }
 
-var treeColors = map[TreeNodeType]string{
-	NodeTypeDatabase:  "#00BFFF",
-	NodeTypeSection:   "#FFFF00",
-	NodeTypeTable:     "#FFFFFF",
-	NodeTypeColumn:    "#888888",
-	NodeTypeFunction:  "#9370DB",
-	NodeTypeProcedure: "#FFA500",
-	NodeTypeView:      "#32CD32",
+func treeColor(nodeType TreeNodeType) lipgloss.Color {
+	switch nodeType {
+	case NodeTypeDatabase:
+		return CyanColor
+	case NodeTypeSection:
+		return YellowColor
+	case NodeTypeTable:
+		return PrimaryTextColor
+	case NodeTypeColumn:
+		return MutedTextColor
+	case NodeTypeFunction:
+		return PurpleColor
+	case NodeTypeProcedure:
+		return OrangeColor
+	case NodeTypeView, NodeTypeMaterializedView:
+		return GreenColor
+	default:
+		return PrimaryTextColor
+	}
 }
 
 func NewTreeModel() *TreeModel {
@@ -105,8 +119,17 @@ type databasesLoadedMsg struct {
 }
 
 type tablesLoadedMsg struct {
+	database          string
+	tables            map[string][]string
+	err               error
+	views             map[string][]string
+	materializedViews map[string][]string
+}
+
+type treeMetadataLoadedMsg struct {
 	database string
-	tables   map[string][]string
+	tab      int
+	data     [][]string
 	err      error
 }
 
@@ -125,8 +148,10 @@ func (m *TreeModel) Init() tea.Cmd {
 		logger.Info("Tree Init: loading tables for specific database", map[string]any{"database": m.dbName})
 		return func() tea.Msg {
 			tables, err := m.driver.GetTables(m.dbName)
+			views, _ := m.driver.GetViews(m.dbName)
+			mviews, _ := m.driver.GetMaterializedViews(m.dbName)
 			logger.Info("Tree Init: GetTables result", map[string]any{"database": m.dbName, "count": len(tables), "error": err})
-			return tablesLoadedMsg{database: m.dbName, tables: tables, err: err}
+			return tablesLoadedMsg{database: m.dbName, tables: tables, views: views, materializedViews: mviews, err: err}
 		}
 	}
 	logger.Info("Tree Init: loading all databases", nil)
@@ -171,7 +196,27 @@ func (m *TreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.root.Children = append(m.root.Children, dbNode)
 			}
-			m.setTables(dbNode, msg.database, msg.tables)
+			m.setTables(dbNode, msg.database, msg.tables, msg.views, msg.materializedViews)
+
+			// Count items for status bar
+			totalTables, totalViews, totalMViews := 0, 0, 0
+			for _, v := range msg.tables {
+				totalTables += len(v)
+			}
+			for _, v := range msg.views {
+				totalViews += len(v)
+			}
+			for _, v := range msg.materializedViews {
+				totalMViews += len(v)
+			}
+			if totalMViews > 0 {
+				m.status = fmt.Sprintf("Loaded %d tables, %d views, %d materialized views", totalTables, totalViews, totalMViews)
+			} else if totalViews > 0 {
+				m.status = fmt.Sprintf("Loaded %d tables, %d views", totalTables, totalViews)
+			} else {
+				m.status = fmt.Sprintf("Loaded %d tables", totalTables)
+			}
+
 			m.rebuildFlattened()
 		}
 	case tea.KeyMsg:
@@ -184,33 +229,55 @@ func (m *TreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		switch msg.String() {
 		case "/":
+			m.pendingKey = ""
 			m.searching = true
 			m.search = ""
 			m.scanPrefix = ""
 			m.cursor = 0
+		case "g":
+			nodes := m.visibleNodes()
+			if m.pendingKey == "g" && len(nodes) > 0 {
+				m.cursor = 0
+				m.scanPrefix = ""
+				m.pendingKey = ""
+			} else {
+				m.pendingKey = "g"
+			}
+		case "G":
+			nodes := m.visibleNodes()
+			if len(nodes) > 0 {
+				m.cursor = len(nodes) - 1
+				m.scanPrefix = ""
+			}
+			m.pendingKey = ""
 		case "up", "k":
+			m.pendingKey = ""
 			m.scanPrefix = ""
 			if m.cursor > 0 {
 				m.cursor--
 			}
 		case "down", "j":
+			m.pendingKey = ""
 			m.scanPrefix = ""
 			if m.cursor < len(m.visibleNodes())-1 {
 				m.cursor++
 			}
 		case "ctrl+d":
+			m.pendingKey = ""
 			nodes := m.visibleNodes()
 			if len(nodes) > 0 {
 				m.cursor = min(len(nodes)-1, m.cursor+5)
 				m.setScanPrefix(nodes)
 			}
 		case "ctrl+u":
+			m.pendingKey = ""
 			nodes := m.visibleNodes()
 			if len(nodes) > 0 {
 				m.cursor = max(0, m.cursor-5)
 				m.setScanPrefix(nodes)
 			}
 		case "enter":
+			m.pendingKey = ""
 			nodes := m.visibleNodes()
 			if m.cursor < len(nodes) {
 				node := nodes[m.cursor]
@@ -219,11 +286,14 @@ func (m *TreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					dbName := node.Name
 					return m, func() tea.Msg {
 						tables, err := m.driver.GetTables(dbName)
-						return tablesLoadedMsg{database: dbName, tables: tables, err: err}
+						views, _ := m.driver.GetViews(dbName)
+						mviews, _ := m.driver.GetMaterializedViews(dbName)
+						return tablesLoadedMsg{database: dbName, tables: tables, views: views, materializedViews: mviews, err: err}
 					}
 				}
 			}
 		case "left", "h":
+			m.pendingKey = ""
 			nodes := m.visibleNodes()
 			if m.cursor < len(nodes) && m.isFlatExpanded(nodes[m.cursor]) {
 				m.toggleFlatExpanded(nodes[m.cursor])
@@ -231,6 +301,7 @@ func (m *TreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor--
 			}
 		case "right", "l":
+			m.pendingKey = ""
 			nodes := m.visibleNodes()
 			if m.cursor < len(nodes) {
 				node := nodes[m.cursor]
@@ -240,7 +311,9 @@ func (m *TreeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						dbName := node.Name
 						return m, func() tea.Msg {
 							tables, err := m.driver.GetTables(dbName)
-							return tablesLoadedMsg{database: dbName, tables: tables, err: err}
+							views, _ := m.driver.GetViews(dbName)
+							mviews, _ := m.driver.GetMaterializedViews(dbName)
+							return tablesLoadedMsg{database: dbName, tables: tables, views: views, materializedViews: mviews, err: err}
 						}
 					}
 				} else if m.cursor < len(nodes)-1 {
@@ -277,7 +350,7 @@ func renderNameWithPrefix(nameText string, style lipgloss.Style, highlight bool)
 
 	runes := []rune(nameText)
 	prefix := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#1A1B26")).
+		Foreground(InverseTextColor).
 		Background(TertiaryTextColor).
 		Bold(true).
 		Inline(true).
@@ -397,7 +470,7 @@ func (m *TreeModel) findNode(node *TreeNode, flat FlatNode) *TreeNode {
 func (m *TreeModel) View() string {
 	if len(m.flattened) == 0 && m.status == "" {
 		return lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#888888")).
+			Foreground(MutedTextColor).
 			Render("  Loading...")
 	}
 
@@ -407,8 +480,8 @@ func (m *TreeModel) View() string {
 			Render("  " + m.status)
 	}
 
-	borderColor := lipgloss.Color("#666A7E")
-	titleColor := lipgloss.Color("#FFFFFF")
+	borderColor := MutedBorderColor
+	titleColor := PrimaryTextColor
 	if m.focused {
 		borderColor = SecondaryTextColor
 		titleColor = SecondaryTextColor
@@ -436,7 +509,7 @@ func (m *TreeModel) View() string {
 		}
 		lines = append(lines, lipgloss.NewStyle().
 			Foreground(SecondaryTextColor).
-			Background(lipgloss.Color("#1F2335")).
+			Background(OverlayColor).
 			Padding(0, 1).
 			Width(contentWidth).
 			Render("/ "+query))
@@ -445,10 +518,10 @@ func (m *TreeModel) View() string {
 	for i, node := range nodes {
 		indent := strings.Repeat("  ", node.Depth)
 		icon := treeIcons[node.Type]
-		color := treeColors[node.Type]
+		color := treeColor(node.Type)
 
 		if !m.focused {
-			color = "#888888"
+			color = MutedTextColor
 		}
 
 		expand := " "
@@ -462,12 +535,12 @@ func (m *TreeModel) View() string {
 
 		availableNameWidth := max(1, contentWidth-lipgloss.Width(indent)-lipgloss.Width(expand)-lipgloss.Width(icon)-6)
 		nameText := truncateDisplay(node.Name, availableNameWidth)
-		nameStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Inline(true)
-		iconStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Inline(true)
-		expandStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#565F89")).Inline(true)
+		nameStyle := lipgloss.NewStyle().Foreground(color).Inline(true)
+		iconStyle := lipgloss.NewStyle().Foreground(color).Inline(true)
+		expandStyle := lipgloss.NewStyle().Foreground(MutedTextColor).Inline(true)
 
 		if i == m.cursor && m.focused {
-			nameStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")).Bold(true).Inline(true)
+			nameStyle = lipgloss.NewStyle().Foreground(PrimaryTextColor).Bold(true).Inline(true)
 			iconStyle = lipgloss.NewStyle().Foreground(SecondaryTextColor).Bold(true).Inline(true)
 			expandStyle = lipgloss.NewStyle().Foreground(TertiaryTextColor).Bold(true).Inline(true)
 		}
@@ -482,7 +555,7 @@ func (m *TreeModel) View() string {
 			prefixBadge := ""
 			if m.scanPrefix != "" {
 				prefixBadge = lipgloss.NewStyle().
-					Foreground(lipgloss.Color("#1A1B26")).
+					Foreground(InverseTextColor).
 					Background(TertiaryTextColor).
 					Bold(true).
 					Padding(0, 1).
@@ -490,8 +563,8 @@ func (m *TreeModel) View() string {
 			}
 			padWidth := max(0, contentWidth-lipgloss.Width(selected)-lipgloss.Width(prefixBadge)-1)
 			line = lipgloss.NewStyle().
-				Background(lipgloss.Color("#1F2A44")).
-				Foreground(lipgloss.Color("#C0CAF5")).
+				Background(SelectionColor).
+				Foreground(PrimaryTextColor).
 				Inline(true).
 				Render(selected + strings.Repeat(" ", padWidth) + prefixBadge + " ")
 		} else {
@@ -540,45 +613,95 @@ func (m *TreeModel) SetDatabases(databases []string) {
 	m.rebuildFlattened()
 }
 
-func (m *TreeModel) setTables(dbNode *TreeNode, database string, tables map[string][]string) {
-	dbNode.Children = make([]*TreeNode, 0, len(tables))
+func (m *TreeModel) setTables(dbNode *TreeNode, database string, tables map[string][]string, views map[string][]string, mviews map[string][]string) {
+	dbNode.Children = make([]*TreeNode, 0)
+
+	addItems := func(schemaName string, names []string, nodeType TreeNodeType) {
+		for _, name := range sortedNames(names) {
+			dbNode.Children = append(dbNode.Children, &TreeNode{
+				Type:     nodeType,
+				Name:     name,
+				Database: database,
+				Schema:   schemaName,
+				Children: []*TreeNode{},
+				Expanded: false,
+			})
+		}
+	}
 
 	if m.driver != nil && m.driver.UseSchemas() {
-		for _, schemaName := range sortedMapKeys(tables) {
-			tableNames := sortedNames(tables[schemaName])
+		schemaNames := make([]string, 0)
+		seen := make(map[string]bool)
+		for schema := range tables {
+			if !seen[schema] {
+				seen[schema] = true
+				schemaNames = append(schemaNames, schema)
+			}
+		}
+		for schema := range views {
+			if !seen[schema] {
+				seen[schema] = true
+				schemaNames = append(schemaNames, schema)
+			}
+		}
+		for schema := range mviews {
+			if !seen[schema] {
+				seen[schema] = true
+				schemaNames = append(schemaNames, schema)
+			}
+		}
+		sort.Strings(schemaNames)
+
+		for _, schemaName := range schemaNames {
 			schemaNode := &TreeNode{
 				Type:     NodeTypeSection,
 				Name:     schemaName,
 				Database: database,
 				Schema:   schemaName,
-				Children: make([]*TreeNode, 0, len(tableNames)),
+				Children: make([]*TreeNode, 0),
 				Expanded: false,
 			}
-			for _, tableName := range tableNames {
-				schemaNode.Children = append(schemaNode.Children, &TreeNode{
-					Type:     NodeTypeTable,
-					Name:     tableName,
+
+			appendSection := func(title string, names []string, nodeType TreeNodeType) {
+				sectionNode := &TreeNode{
+					Type:     NodeTypeSection,
+					Name:     title,
 					Database: database,
 					Schema:   schemaName,
-				})
+					Children: make([]*TreeNode, 0, len(names)),
+					Expanded: false,
+				}
+				for _, name := range sortedNames(names) {
+					sectionNode.Children = append(sectionNode.Children, &TreeNode{
+						Type:     nodeType,
+						Name:     name,
+						Database: database,
+						Schema:   schemaName,
+						Children: []*TreeNode{},
+						Expanded: false,
+					})
+				}
+				schemaNode.Children = append(schemaNode.Children, sectionNode)
 			}
+
+			appendSection("Tables", tables[schemaName], NodeTypeTable)
+			appendSection("Views", views[schemaName], NodeTypeView)
+			appendSection("Materialized Views", mviews[schemaName], NodeTypeMaterializedView)
+
 			dbNode.Children = append(dbNode.Children, schemaNode)
 		}
 		return
 	}
 
-	tableNames := make([]string, 0)
-	for _, names := range tables {
-		tableNames = append(tableNames, names...)
+	// No schemas: flatten all into dbNode directly
+	for schema, names := range tables {
+		addItems(schema, names, NodeTypeTable)
 	}
-	for _, tableName := range sortedNames(tableNames) {
-		dbNode.Children = append(dbNode.Children, &TreeNode{
-			Type:     NodeTypeTable,
-			Name:     tableName,
-			Database: database,
-			Children: []*TreeNode{},
-			Expanded: false,
-		})
+	for schema, names := range views {
+		addItems(schema, names, NodeTypeView)
+	}
+	for schema, names := range mviews {
+		addItems(schema, names, NodeTypeMaterializedView)
 	}
 }
 
@@ -613,9 +736,12 @@ func (m *TreeModel) LoadTables(dbName string) error {
 		return err
 	}
 
+	views, _ := m.driver.GetViews(dbName)
+	mviews, _ := m.driver.GetMaterializedViews(dbName)
+
 	for _, child := range m.root.Children {
 		if child.Name == dbName {
-			m.setTables(child, dbName, tables)
+			m.setTables(child, dbName, tables, views, mviews)
 			break
 		}
 	}

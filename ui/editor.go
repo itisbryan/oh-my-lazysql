@@ -3,11 +3,12 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/jorgerojas26/lazysql/drivers"
+	"github.com/itisbryan/oh-my-lazysql/drivers"
 )
 
 type editorMode int
@@ -18,20 +19,21 @@ const (
 )
 
 type EditorModel struct {
-	lines      []string
-	cursorRow  int
-	cursorCol  int
-	scrollRow  int
-	mode       editorMode
-	driver     drivers.Driver
-	results    *ResultsModel
-	width      int
-	height     int
-	focused    bool
-	executing  bool
-	completion CompletionState
-	pendingKey string
-	preferCol  int
+	lines        []string
+	cursorRow    int
+	cursorCol    int
+	scrollRow    int
+	mode         editorMode
+	driver       drivers.Driver
+	results      *ResultsModel
+	width        int
+	height       int
+	focused      bool
+	executing    bool
+	spinnerFrame int
+	completion   CompletionState
+	pendingKey   string
+	preferCol    int
 }
 
 type editorQueryExecutedMsg struct {
@@ -58,11 +60,20 @@ func (m *EditorModel) SetResults(results *ResultsModel) {
 }
 
 func (m *EditorModel) Init() tea.Cmd {
-	return nil
+	return tea.Tick(time.Second/7, func(time.Time) tea.Msg {
+		return spinnerTick{}
+	})
 }
 
 func (m *EditorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case spinnerTick:
+		if m.executing {
+			m.spinnerFrame = (m.spinnerFrame + 1) % len(spinnerFrames)
+		}
+		return m, tea.Tick(time.Second/7, func(time.Time) tea.Msg {
+			return spinnerTick{}
+		})
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -458,17 +469,17 @@ func (m *EditorModel) executeQuery() tea.Msg {
 
 func (m *EditorModel) View() string {
 	modeLabel := "-- NORMAL --"
-	modeFg := lipgloss.Color("#7AA2F7")
-	modeBg := lipgloss.Color("#1F2335")
+	modeFg := AccentColor
+	modeBg := OverlayColor
 	if m.mode == insertMode {
 		modeLabel = "-- INSERT --"
-		modeFg = lipgloss.Color("#9ECE6A")
-		modeBg = lipgloss.Color("#1A2E1A")
+		modeFg = GreenColor
+		modeBg = SurfaceColor
 	}
 	if m.executing {
 		modeLabel = "EXECUTING..."
-		modeFg = lipgloss.Color("#FF9E64")
-		modeBg = lipgloss.Color("#2E1A1A")
+		modeFg = OrangeColor
+		modeBg = SurfaceColor
 	}
 
 	editorContent := m.renderEditorContent()
@@ -482,14 +493,19 @@ func (m *EditorModel) View() string {
 
 	posInfo := fmt.Sprintf("%d:%d", m.cursorRow+1, m.cursorCol+1)
 	lineInfo := fmt.Sprintf("L%d/%d", m.cursorRow+1, len(m.lines))
-	posStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#565F89"))
+	posStyle := lipgloss.NewStyle().Foreground(MutedTextColor)
 
-	sqlHint := lipgloss.NewStyle().Foreground(lipgloss.Color("#565F89")).Render("[Ctrl+R] Run  [Ctrl+E] Toggle")
+	sqlHint := lipgloss.NewStyle().Foreground(MutedTextColor).Render("[Ctrl+R] Run  [Ctrl+E] Toggle")
 
 	rightInfo := posStyle.Render(posInfo + "  " + lineInfo + "  " + sqlHint)
+	if m.executing {
+		loadingLabel := lipgloss.NewStyle().Foreground(OrangeColor).Bold(true).Render(spinnerFrames[m.spinnerFrame] + " Running query")
+		bar := indeterminateProgressBar(max(12, min(24, m.width/4)), m.spinnerFrame, OrangeColor, SelectionColor)
+		rightInfo = lipgloss.JoinHorizontal(lipgloss.Left, loadingLabel, "  ", bar)
+	}
 
 	statusBar := lipgloss.NewStyle().
-		Background(lipgloss.Color("#1A1B26")).
+		Background(BackgroundColor).
 		Padding(0, 1).
 		Width(max(1, m.width-2)).
 		Render(modeBox + strings.Repeat(" ", max(1, m.width-lipgloss.Width(modeBox)-lipgloss.Width(rightInfo)-6)) + rightInfo)
@@ -518,9 +534,9 @@ func (m *EditorModel) renderEditorContent() string {
 		}
 
 		lineNum := fmt.Sprintf("%4d ", lineIdx+1)
-		lineNumStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#3B4261"))
+		lineNumStyle := lipgloss.NewStyle().Foreground(MutedBorderColor)
 		if lineIdx == m.cursorRow {
-			lineNumStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#7AA2F7")).Bold(true)
+			lineNumStyle = lipgloss.NewStyle().Foreground(AccentColor).Bold(true)
 		}
 
 		contentWidth := max(1, m.width-8)
@@ -531,12 +547,12 @@ func (m *EditorModel) renderEditorContent() string {
 		if lineIdx == m.cursorRow {
 			cursorCol := m.cursorCol
 			plainRunes := []rune(m.lines[lineIdx])
-			currentLineBg := lipgloss.NewStyle().Background(lipgloss.Color("#1A1F33"))
-			currentLineHighlight := lipgloss.NewStyle().Background(lipgloss.Color("#1A1F33"))
+			currentLineBg := lipgloss.NewStyle().Background(BackgroundColor)
+			currentLineHighlight := lipgloss.NewStyle().Background(BackgroundColor)
 
 			if m.mode == normalMode {
 				if len(plainRunes) == 0 {
-					displayLine = lipgloss.NewStyle().Background(lipgloss.Color("#283457")).Render(" ")
+					displayLine = lipgloss.NewStyle().Background(SelectionColor).Render(" ")
 				} else if cursorCol < len(plainRunes) {
 					ch := string(plainRunes[cursorCol])
 					before := ""
@@ -548,13 +564,13 @@ func (m *EditorModel) renderEditorContent() string {
 						after = currentLineHighlight.Render(truncateDisplay(highlightSQL(string(plainRunes[cursorCol+1:])), contentWidth))
 					}
 					cursorStyle := lipgloss.NewStyle().
-						Background(lipgloss.Color("#283457")).
-						Foreground(lipgloss.Color("#C0CAF5")).Bold(true)
+						Background(SelectionColor).
+						Foreground(PrimaryTextColor).Bold(true)
 					selectedChar := cursorStyle.Render(ch)
 					displayLine = before + selectedChar + after
 				} else {
 					before := currentLineHighlight.Render(truncateDisplay(highlightSQL(string(plainRunes)), contentWidth))
-					eolMarker := lipgloss.NewStyle().Background(lipgloss.Color("#283457")).Foreground(lipgloss.Color("#C0CAF5")).Bold(true).Render(" ")
+					eolMarker := lipgloss.NewStyle().Background(SelectionColor).Foreground(PrimaryTextColor).Bold(true).Render(" ")
 					displayLine = before + eolMarker
 				}
 			} else {
@@ -566,21 +582,21 @@ func (m *EditorModel) renderEditorContent() string {
 				if cursorCol < len(plainRunes) {
 					after = currentLineBg.Render(truncateDisplay(highlightSQL(string(plainRunes[cursorCol:])), contentWidth))
 				}
-				cursor := lipgloss.NewStyle().Foreground(lipgloss.Color("#C0CAF5")).Bold(true).Render("▌")
+				cursor := lipgloss.NewStyle().Foreground(PrimaryTextColor).Bold(true).Render("▌")
 
 				ghost := ""
 				ghostSuffix := m.completion.GhostSuffix(m.text())
 				if ghostSuffix != "" && lineIdx == m.cursorRow {
-					ghostStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#565F89"))
+					ghostStyle := lipgloss.NewStyle().Foreground(MutedTextColor)
 					ghost = ghostStyle.Render(truncateDisplay(ghostSuffix, max(1, contentWidth-lipgloss.Width(before+after))))
 				}
 				displayLine = before + after + cursor + ghost
 			}
 		}
 
-		separator := lipgloss.NewStyle().Foreground(lipgloss.Color("#3B4261")).Render("│")
+		separator := lipgloss.NewStyle().Foreground(MutedBorderColor).Render("│")
 		if lineIdx == m.cursorRow {
-			separator = lipgloss.NewStyle().Foreground(lipgloss.Color("#7AA2F7")).Render("│")
+			separator = lipgloss.NewStyle().Foreground(AccentColor).Render("│")
 		}
 
 		renderLines = append(renderLines, lineNumStyle.Render(lineNum)+separator+" "+displayLine)

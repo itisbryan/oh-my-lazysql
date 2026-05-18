@@ -1,4 +1,4 @@
-module github.com/jorgerojas26/lazysql
+module github.com/itisbryan/oh-my-lazysql
 
 go 1.25.0
 

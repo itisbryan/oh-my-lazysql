@@ -3,7 +3,7 @@ package components
 import (
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/jorgerojas26/lazysql/ui"
+	"github.com/itisbryan/oh-my-lazysql/ui"
 )
 
 type ModalModel struct {

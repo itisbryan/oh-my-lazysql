@@ -5,7 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/jorgerojas26/lazysql/models"
+	"github.com/itisbryan/oh-my-lazysql/models"
 )
 
 func TestLoadTableRecordsDefaultsToLatestCreatedAt(t *testing.T) {
@@ -390,7 +390,7 @@ func TestPropagationPutsTableNamesInCompletionContext(t *testing.T) {
 
 	model.tree.SetDatabases([]string{"testdb"})
 	model.tree.root.Children[0].Expanded = true
-	model.tree.setTables(model.tree.root.Children[0], "testdb", map[string][]string{"public": {"users", "orders"}})
+	model.tree.setTables(model.tree.root.Children[0], "testdb", map[string][]string{"public": {"users", "orders"}}, nil, nil)
 	model.tree.rebuildFlattened()
 
 	model.results.columns = []GridColumn{{Title: "id"}, {Title: "email"}, {Title: "created_at"}}
@@ -449,7 +449,7 @@ func TestTableNameCollectionWithNonSchemaDriver(t *testing.T) {
 
 	model.tree.SetDatabases([]string{"mydb"})
 	model.tree.root.Children[0].Expanded = true
-	model.tree.setTables(model.tree.root.Children[0], "mydb", map[string][]string{"mydb": {"users", "orders", "products"}})
+	model.tree.setTables(model.tree.root.Children[0], "mydb", map[string][]string{"mydb": {"users", "orders", "products"}}, nil, nil)
 	model.tree.rebuildFlattened()
 
 	names := model.tree.TableNames()
@@ -515,6 +515,68 @@ func TestTabAcceptsAutocompleteWhenEditorFocused(t *testing.T) {
 	}
 	if len(change.Values) != 1 || change.Values[0].Column != "email" || change.Values[0].Value != "new@example.com" {
 		t.Fatalf("unexpected values: %#v", change.Values)
+	}
+}
+
+func TestEnterOnViewNodeLoadsRecords(t *testing.T) {
+	driver := &fakeHomeDriver{
+		columns: [][]string{{"column_name", "data_type"}, {"id", "integer"}, {"email", "text"}},
+		records: [][]string{{"id", "email"}, {"1", "a@b.com"}},
+	}
+	model := NewHomeModel(models.Connection{})
+	model.driver = driver
+	model.tree.driver = driver
+	model.tree.root.Children = []*TreeNode{{
+		Type:     NodeTypeDatabase,
+		Name:     "app",
+		Database: "app",
+		Expanded: true,
+		Children: []*TreeNode{{
+			Type:     NodeTypeSection,
+			Name:     "public",
+			Database: "app",
+			Schema:   "public",
+			Expanded: true,
+			Children: []*TreeNode{{
+				Type:     NodeTypeSection,
+				Name:     "Views",
+				Database: "app",
+				Schema:   "public",
+				Expanded: true,
+				Children: []*TreeNode{{
+					Type:     NodeTypeView,
+					Name:     "active_users",
+					Database: "app",
+					Schema:   "public",
+				}},
+			}},
+		}},
+	}}
+	model.tree.rebuildFlattened()
+	model.focus = "tree"
+
+	found := false
+	for i, node := range model.tree.visibleNodes() {
+		if node.Type == NodeTypeView && node.Name == "active_users" {
+			model.tree.cursor = i
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected view node to be visible in tree")
+	}
+
+	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("expected enter on view node to load records")
+	}
+	msg := cmd()
+	if loaded, ok := msg.(recordsLoadedMsg); !ok || loaded.err != nil {
+		t.Fatalf("expected recordsLoadedMsg without error, got %#v", msg)
+	}
+	if model.currentTable != "active_users" {
+		t.Fatalf("expected current table active_users, got %q", model.currentTable)
 	}
 }
 
@@ -763,6 +825,7 @@ func (d *fakeHomeDriver) UseSchemas() bool                                      
 func (d *fakeHomeDriver) GetFunctions(string) (map[string][]string, error)          { return nil, nil }
 func (d *fakeHomeDriver) GetProcedures(string) (map[string][]string, error)         { return nil, nil }
 func (d *fakeHomeDriver) GetViews(string) (map[string][]string, error)              { return nil, nil }
+func (d *fakeHomeDriver) GetMaterializedViews(string) (map[string][]string, error)  { return nil, nil }
 func (d *fakeHomeDriver) GetFunctionDefinition(string, string) (string, error)      { return "", nil }
 func (d *fakeHomeDriver) GetProcedureDefinition(string, string) (string, error)     { return "", nil }
 func (d *fakeHomeDriver) GetViewDefinition(string, string) (string, error)          { return "", nil }

@@ -4,7 +4,7 @@
 
 A keyboard-first TUI database client written in Go. OhMyLazySQL builds on the original LazySQL and focuses on a friendlier connection flow, smoother table browsing, inline editing, and relationship-aware navigation.
 
-> This repository is a fork of [jorgerojas26/lazysql](https://github.com/jorgerojas26/lazysql). The original project deserves credit for the core idea, database driver foundation, TUI structure, configuration format, and much of the baseline functionality. This fork documents the behavior in this repository, which now differs from upstream in several UI and navigation areas.
+> This repository is a fork of [jorgerojas26/lazysql](https://github.com/itisbryan/oh-my-lazysql). The original project deserves credit for the core idea, database driver foundation, TUI structure, configuration format, and much of the baseline functionality. This fork documents the behavior in this repository, which now differs from upstream in several UI and navigation areas.
 
 ![Connection selection screenshot][product-screenshot1]
 ![OhMyLazySQL screenshot][product-screenshot2]
@@ -64,24 +64,62 @@ OhMyLazySQL keeps the original LazySQL terminal workflow and adds a more polishe
 
 ## Installation
 
-### Build this fork from source
+### Homebrew (macOS / Linux)
 
 ```bash
-git clone <this-fork-url>
+brew install itisbryan/tap/oh-my-lazysql
+```
+
+Or:
+
+```bash
+brew tap itisbryan/tap
+brew install oh-my-lazysql
+```
+
+Once installed, just run:
+
+```bash
+oh-my-lazysql
+```
+
+### Curl (macOS)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/itisbryan/oh-my-lazysql/main/install.sh | bash
+```
+
+Or download a release tarball directly:
+
+```bash
+# Apple Silicon
+curl -L https://github.com/itisbryan/oh-my-lazysql/releases/latest/download/oh-my-lazysql_Darwin_arm64.tar.gz -o oh-my-lazysql.tar.gz
+
+# Intel
+curl -L https://github.com/itisbryan/oh-my-lazysql/releases/latest/download/oh-my-lazysql_Darwin_x86_64.tar.gz -o oh-my-lazysql.tar.gz
+
+tar -xzf oh-my-lazysql.tar.gz
+sudo mv oh-my-lazysql /usr/local/bin/oh-my-lazysql
+oh-my-lazysql --version
+```
+
+> **Note:** Publishing a GitHub Release (e.g. `v0.1.0`) with tarball assets is required for Homebrew and curl install to work. Update the placeholders with your GitHub username once releases are published.
+
+
+### Build from source
+
+```bash
+git clone https://github.com/itisbryan/oh-my-lazysql
 cd oh-my-lazysql
 go build -o oh-my-lazysql .
 ./oh-my-lazysql
 ```
 
-You can also install the current checkout into your Go bin path:
+Or install into your Go bin path:
 
 ```bash
 go install .
 ```
-
-### Upstream releases
-
-The original LazySQL project publishes releases and package-manager instructions at [jorgerojas26/lazysql](https://github.com/jorgerojas26/lazysql). Those releases are upstream builds, not necessarily this fork's current behavior.
 
 ## Usage
 
@@ -130,6 +168,7 @@ OhMyLazySQL currently reuses the upstream LazySQL config locations:
 
 ```toml
 [application]
+theme = "tokyonight"
 default_page_size = 300
 disable_sidebar = false
 sidebar_overlay = false
@@ -141,6 +180,7 @@ enter_opens_json_viewer = false
 
 | Setting | Default | Description |
 | --- | --- | --- |
+| `theme` | `tokyonight` | Color palette: `tokyonight`, `dracula`, `catppuccin-mocha`, `nord`, `gruvbox-dark`, or `terminal` |
 | `default_page_size` | `300` | Number of rows fetched per page |
 | `disable_sidebar` | `false` | Start without the table tree sidebar |
 | `sidebar_overlay` | `false` | Show sidebar as an overlay instead of a side panel |
@@ -165,6 +205,7 @@ Example:
 
 ```toml
 [application]
+theme = "tokyonight"
 default_page_size = 500
 
 [[database]]
@@ -174,6 +215,17 @@ URL = "postgres://localhost/myproject_dev"
 ```
 
 Saving connections from the UI writes to the global config file, not `.lazysql.toml`.
+
+### Themes
+
+Set the UI palette in `[application]`:
+
+```toml
+[application]
+theme = "catppuccin-mocha"
+```
+
+Available themes: `tokyonight`, `dracula`, `catppuccin-mocha`, `nord`, `gruvbox-dark`, and `terminal`.
 
 ## Connections
 
@@ -553,9 +605,9 @@ go build -o oh-my-lazysql .
 
 ## Attribution
 
-This fork is based on [jorgerojas26/lazysql](https://github.com/jorgerojas26/lazysql), created by Jorge Rojas. Upstream LazySQL established the original TUI database client, driver interfaces, configuration model, and much of the application foundation.
+This fork is based on [jorgerojas26/lazysql](https://github.com/itisbryan/oh-my-lazysql), created by Jorge Rojas. Upstream LazySQL established the original TUI database client, driver interfaces, configuration model, and much of the application foundation.
 
-This README describes the current behavior of this fork. If you are looking for upstream releases, upstream package-manager instructions, or upstream issue tracking, visit [jorgerojas26/lazysql](https://github.com/jorgerojas26/lazysql).
+This README describes the current behavior of this fork. If you are looking for upstream releases, upstream package-manager instructions, or upstream issue tracking, visit [jorgerojas26/lazysql](https://github.com/itisbryan/oh-my-lazysql).
 
 Related projects and inspiration:
 

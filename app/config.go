@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/itisbryan/oh-my-lazysql/helpers"
+	"github.com/itisbryan/oh-my-lazysql/models"
 	"github.com/pelletier/go-toml/v2"
 	"github.com/xo/dburl"
-	"github.com/jorgerojas26/lazysql/helpers"
-	"github.com/jorgerojas26/lazysql/models"
 )
 
 type Config struct {
@@ -23,6 +23,7 @@ type Config struct {
 func defaultConfig() *Config {
 	return &Config{
 		AppConfig: &models.AppConfig{
+			Theme:                        "tokyonight",
 			DefaultPageSize:              300,
 			SidebarOverlay:               false,
 			MaxQueryHistoryPerConnection: 100,

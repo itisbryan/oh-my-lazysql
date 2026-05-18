@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/jorgerojas26/lazysql/models"
+	"github.com/itisbryan/oh-my-lazysql/models"
 )
 
 func TestCompletionContextAfterRecordLoad(t *testing.T) {
@@ -103,7 +103,7 @@ func TestHomeModelFilterTypingShowsTables(t *testing.T) {
 	model.tree.driver = driver
 	model.tree.SetDatabases([]string{"testdb"})
 	model.tree.root.Children[0].Expanded = true
-	model.tree.setTables(model.tree.root.Children[0], "testdb", map[string][]string{"public": {"users", "orders"}})
+	model.tree.setTables(model.tree.root.Children[0], "testdb", map[string][]string{"public": {"users", "orders"}}, nil, nil)
 	model.tree.rebuildFlattened()
 	model.results.columns = []GridColumn{{Title: "id"}, {Title: "email"}}
 	model.results.rows = [][]string{{"1", "a@b.com"}}

@@ -286,22 +286,22 @@ func renderCompletionDropdown(items []completionItem, selectedIndex int, maxWidt
 		switch item.Kind {
 		case keywordSuggestion:
 			kindBadge = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#1A1B26")).
-				Background(lipgloss.Color("#7DCFFF")).
+				Foreground(InverseTextColor).
+				Background(CyanColor).
 				Bold(true).
 				Padding(0, 1).
 				Render("K")
 		case tableSuggestion:
 			kindBadge = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#1A1B26")).
-				Background(lipgloss.Color("#9ECE6A")).
+				Foreground(InverseTextColor).
+				Background(GreenColor).
 				Bold(true).
 				Padding(0, 1).
 				Render("T")
 		case columnSuggestion:
 			kindBadge = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#1A1B26")).
-				Background(lipgloss.Color("#FF9E64")).
+				Foreground(InverseTextColor).
+				Background(OrangeColor).
 				Bold(true).
 				Padding(0, 1).
 				Render("C")
@@ -315,15 +315,15 @@ func renderCompletionDropdown(items []completionItem, selectedIndex int, maxWidt
 
 		if idx == selectedIndex {
 			textRendered := lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#C0CAF5")).
-				Background(lipgloss.Color("#283457")).
+				Foreground(PrimaryTextColor).
+				Background(SelectionColor).
 				Width(textWidth).
 				Render(text)
 			lines = append(lines, textRendered+" "+kindBadge)
 		} else {
 			textRendered := lipgloss.NewStyle().
-				Foreground(lipgloss.Color("#C0CAF5")).
-				Background(lipgloss.Color("#1A1B26")).
+				Foreground(PrimaryTextColor).
+				Background(BackgroundColor).
 				Width(textWidth).
 				Render(text)
 			lines = append(lines, textRendered+" "+kindBadge)
@@ -332,15 +332,15 @@ func renderCompletionDropdown(items []completionItem, selectedIndex int, maxWidt
 
 	box := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#3B4261")).
-		Background(lipgloss.Color("#1A1B26")).
+		BorderForeground(MutedBorderColor).
+		Background(BackgroundColor).
 		Padding(0, 1).
 		Width(max(1, itemWidth+4)).
 		Render(lipgloss.JoinVertical(lipgloss.Left, lines...))
 
 	if len(items) > maxVisible {
 		more := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#565F89")).
+			Foreground(MutedTextColor).
 			Render(fmt.Sprintf("  ↓ %d more", len(items)-maxVisible))
 		box = lipgloss.JoinVertical(lipgloss.Left, box, more)
 	}
@@ -348,17 +348,17 @@ func renderCompletionDropdown(items []completionItem, selectedIndex int, maxWidt
 }
 
 func sqlKeywordStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("#7DCFFF")).Bold(true)
+	return lipgloss.NewStyle().Foreground(CyanColor).Bold(true)
 }
 
 func sqlIdentifierStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("#C0CAF5"))
+	return lipgloss.NewStyle().Foreground(PrimaryTextColor)
 }
 
 func sqlStringStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("#9ECE6A"))
+	return lipgloss.NewStyle().Foreground(GreenColor)
 }
 
 func sqlOperatorStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("#FF9E64"))
+	return lipgloss.NewStyle().Foreground(OrangeColor)
 }

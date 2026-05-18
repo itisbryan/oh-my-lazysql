@@ -5,7 +5,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/jorgerojas26/lazysql/ui"
+	"github.com/itisbryan/oh-my-lazysql/ui"
 )
 
 type InputModel struct {

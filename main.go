@@ -6,13 +6,13 @@ import (
 	"log"
 	"os"
 
-	"github.com/go-sql-driver/mysql"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/go-sql-driver/mysql"
 
-	"github.com/jorgerojas26/lazysql/app"
-	"github.com/jorgerojas26/lazysql/helpers/logger"
-	"github.com/jorgerojas26/lazysql/models"
-	"github.com/jorgerojas26/lazysql/ui"
+	"github.com/itisbryan/oh-my-lazysql/app"
+	"github.com/itisbryan/oh-my-lazysql/helpers/logger"
+	"github.com/itisbryan/oh-my-lazysql/models"
+	"github.com/itisbryan/oh-my-lazysql/ui"
 )
 
 var version = "dev"
@@ -55,6 +55,7 @@ func main() {
 	if err := app.LoadConfig(*configFile); err != nil {
 		log.Fatalf("Error loading config: %v", err)
 	}
+	ui.ApplyTheme(app.App.Config().Theme)
 
 	var initModel tea.Model
 	initModel = ui.NewRootModel()

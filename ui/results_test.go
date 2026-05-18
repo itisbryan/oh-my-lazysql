@@ -74,7 +74,7 @@ func TestResultsTabsRenderNavigationHint(t *testing.T) {
 	model.width = 100
 
 	tabs := model.renderTabs()
-	for _, expected := range []string{"[/] tabs", "1-5 jump"} {
+	for _, expected := range []string{"[/] tabs", "1-5 jump", "</> pages"} {
 		if !strings.Contains(tabs, expected) {
 			t.Fatalf("expected tabs to include navigation hint %q\n%s", expected, tabs)
 		}
@@ -520,6 +520,49 @@ func TestResultsEIteratesColumnsWithWraparound(t *testing.T) {
 	}
 }
 
+func TestResultsBIteratesColumnsBackwardWithWraparound(t *testing.T) {
+	model := NewResultsModel()
+	model.columns = []GridColumn{{Title: "id"}, {Title: "email"}, {Title: "created_at"}}
+	model.rows = [][]string{{"1", "ada@example.com", "2026-05-08"}}
+	model.col = 1
+
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
+	if model.col != 0 {
+		t.Fatalf("expected b to move to previous column, got %d", model.col)
+	}
+
+	model.col = 0
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'b'}})
+	if model.col != 2 {
+		t.Fatalf("expected b to wrap to last column, got %d", model.col)
+	}
+}
+
+func TestResultsGGAndShiftGJumpToTopAndBottom(t *testing.T) {
+	model := NewResultsModel()
+	model.columns = []GridColumn{{Title: "id"}}
+	model.rows = make([][]string, 12)
+	for i := range model.rows {
+		model.rows[i] = []string{"1"}
+	}
+	model.row = 4
+
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+	if model.row != 4 {
+		t.Fatalf("expected first g to wait for second g, got %d", model.row)
+	}
+
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
+	if model.row != 0 {
+		t.Fatalf("expected gg to jump to top, got %d", model.row)
+	}
+
+	_, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+	if model.row != len(model.rows)-1 {
+		t.Fatalf("expected G to jump to bottom, got %d", model.row)
+	}
+}
+
 func TestResultsFilterTabCyclesCompletions(t *testing.T) {
 	model := NewResultsModel()
 	model.width = 100
@@ -708,13 +751,13 @@ func TestHeaderColorsCreateActiveGradient(t *testing.T) {
 	neighborForeground, neighborBackground, neighborSeparator := headerColorsForDistance(1)
 	inactiveForeground, inactiveBackground, inactiveSeparator := headerColorsForDistance(2)
 
-	if activeForeground != SecondaryTextColor || activeBackground != "#283457" || activeSeparator != SecondaryTextColor {
+	if activeForeground != SecondaryTextColor || activeBackground != SelectionColor || activeSeparator != SecondaryTextColor {
 		t.Fatalf("unexpected active header colors: %s %s %s", activeForeground, activeBackground, activeSeparator)
 	}
-	if neighborForeground != "#BB9AF7" || neighborBackground != "#1F2335" || neighborSeparator != "#7DCFFF" {
+	if neighborForeground != PurpleColor || neighborBackground != OverlayColor || neighborSeparator != CyanColor {
 		t.Fatalf("unexpected neighbor header colors: %s %s %s", neighborForeground, neighborBackground, neighborSeparator)
 	}
-	if inactiveForeground != PrimaryTextColor || inactiveBackground != "#1A1F33" || inactiveSeparator != "#565F89" {
+	if inactiveForeground != PrimaryTextColor || inactiveBackground != BackgroundColor || inactiveSeparator != MutedTextColor {
 		t.Fatalf("unexpected inactive header colors: %s %s %s", inactiveForeground, inactiveBackground, inactiveSeparator)
 	}
 }
