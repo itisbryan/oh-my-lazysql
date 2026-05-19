@@ -40,7 +40,7 @@ type HomeModel struct {
 Add import:
 ```go
 import (
-    "github.com/jorgerojas26/lazysql/drivers"
+    "github.com/itisbryan/oh-my-lazysql/drivers"
     // ... existing imports
 )
 ```
@@ -479,10 +479,10 @@ import (
     "github.com/go-sql-driver/mysql"
     tea "github.com/charmbracelet/bubbletea"
 
-    "github.com/jorgerojas26/lazysql/app"
-    "github.com/jorgerojas26/lazysql/helpers/logger"
-    "github.com/jorgerojas26/lazysql/models"
-    "github.com/jorgerojas26/lazysql/ui"
+    "github.com/itisbryan/oh-my-lazysql/app"
+    "github.com/itisbryan/oh-my-lazysql/helpers/logger"
+    "github.com/itisbryan/oh-my-lazysql/models"
+    "github.com/itisbryan/oh-my-lazysql/ui"
 )
 
 var version = "dev"

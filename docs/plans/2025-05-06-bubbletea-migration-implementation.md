@@ -237,9 +237,9 @@ import (
 	"github.com/go-sql-driver/mysql"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/jorgerojas26/lazysql/app"
-	"github.com/jorgerojas26/lazysql/helpers/logger"
-	"github.com/jorgerojas26/lazysql/ui"
+	"github.com/itisbryan/oh-my-lazysql/app"
+	"github.com/itisbryan/oh-my-lazysql/helpers/logger"
+	"github.com/itisbryan/oh-my-lazysql/ui"
 )
 
 var version = "dev"
@@ -328,7 +328,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/jorgerojas26/lazysql/ui"
+	"github.com/itisbryan/oh-my-lazysql/ui"
 )
 
 type InputModel struct {
@@ -468,7 +468,7 @@ package components
 import (
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/jorgerojas26/lazysql/ui"
+	"github.com/itisbryan/oh-my-lazysql/ui"
 )
 
 type ModalModel struct {
@@ -557,10 +557,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/jorgerojas26/lazysql/app"
-	"github.com/jorgerojas26/lazysql/models"
-	ui "github.com/jorgerojas26/lazysql/ui"
-	uiComponents "github.com/jorgerojas26/lazysql/ui/components"
+	"github.com/itisbryan/oh-my-lazysql/app"
+	"github.com/itisbryan/oh-my-lazysql/models"
+	ui "github.com/itisbryan/oh-my-lazysql/ui"
+	uiComponents "github.com/itisbryan/oh-my-lazysql/ui/components"
 )
 
 type ConnectionListModel struct {
@@ -739,8 +739,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	ui "github.com/jorgerojas26/lazysql/ui"
-	"github.com/jorgerojas26/lazysql/models"
+	ui "github.com/itisbryan/oh-my-lazysql/ui"
+	"github.com/itisbryan/oh-my-lazysql/models"
 )
 
 type ProfileSelectorModel struct {
@@ -889,9 +889,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	ui "github.com/jorgerojas26/lazysql/ui"
-	"github.com/jorgerojas26/lazysql/models"
-	"github.com/jorgerojas26/lazysql/drivers"
+	ui "github.com/itisbryan/oh-my-lazysql/ui"
+	"github.com/itisbryan/oh-my-lazysql/models"
+	"github.com/itisbryan/oh-my-lazysql/drivers"
 )
 
 type HomeModel struct {
